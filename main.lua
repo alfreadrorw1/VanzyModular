@@ -24,7 +24,7 @@ local Camera = Services.Workspace.CurrentCamera
 -- [[ CONFIG GLOBAL ]]
 -- Semua state dishare lewat table ini agar antar modul bisa baca jika perlu
 local Config = {
-    RepoURL = "https://raw.githubusercontent.com/USERNAME/REPO/main/", -- GANTI INI DENGAN REPO KAMU
+    RepoURL = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/main/", -- GANTI INI DENGAN REPO KAMU
     MenuTitle = "Vanzyxxx Modular",
     RainbowTheme = false,
     CustomColor = Color3.fromRGB(160, 32, 240),
