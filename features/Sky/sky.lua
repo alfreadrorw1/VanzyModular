@@ -6,7 +6,7 @@ return function(UI, Services, Config, Theme)
     local HttpService = Services.HttpService
     
     -- Create Tab
-    local VisualTab = UI:Tab("Visual")
+    local VisualTab = UI:Tab("Sky")
     
     VisualTab:Label("Sky Changer")
     
