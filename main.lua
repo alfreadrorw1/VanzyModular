@@ -659,24 +659,29 @@ local FeatureList = {
     {category = "Movement", name = "speed", url = GitHubBaseURL .. "features/Movement/speed.lua"},
     {category = "Movement", name = "infinityJump", url = GitHubBaseURL .. "features/Movement/infinityJump.lua"},
     {category = "Movement", name = "noclip", url = GitHubBaseURL .. "features/Movement/noclip.lua"},
-    {category = "Movement", name = "wallClimb", url = GitHubBaseURL .. "features/Movement/wallClimb.lua"},
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
-    {category = "Visual", name = "fullbright", url = GitHubBaseURL .. "features/Visual/fullbright.lua"},
-    {category = "Visual", name = "sky", url = GitHubBaseURL .. "features/Visual/sky.lua"},
+    {category = "Visual", name = "connectionDisplay", url = GitHubBaseURL .. "features/Visual/connectionDisplay.lua"},
+    {category = "Fun", name = "dummyArmy", url = GitHubBaseURL .. "features/Fun/dummyArmy.lua"},
+    {category = "Fun", name = "screenDomination", url = GitHubBaseURL .. "features/Fun/screenDomination.lua"},
+    
     -- Recording
     {category = "Record", name = "recording", url = GitHubBaseURL .. "features/Record/recording.lua"},
+    
     -- Aura Features
     {category = "Aura", name = "aura", url = GitHubBaseURL .. "features/Aura/aura.lua"},
     {category = "Sky", name = "sky", url = GitHubBaseURL .. "features/Sky/sky.lua"},
+    
     -- Checkpoint Features
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
     {category = "Crash", name = "serverCrash", url = GitHubBaseURL .. "features/Crash/serverCrash.lua"},
+    
     -- Settings Features
     {category = "Settings", name = "theme", url = GitHubBaseURL .. "features/Settings/theme.lua"},
     {category = "Settings", name = "fpsBoost", url = GitHubBaseURL .. "features/Settings/fpsBoost.lua"}
 }
+-- Tambahkan di array FeatureList:
 
 function FeatureLoader:LoadFeature(featureInfo)
     local success, result = pcall(function()
