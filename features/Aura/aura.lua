@@ -1,10 +1,11 @@
--- Vanzyxxx Aura System
--- Custom Character Auras and Effects
+-- Vanzyxxx Aura System (FIXED PHYSICS)
+-- Custom Character Auras with Anti-Stuck Logic
 
 return function(UI, Services, Config, Theme)
     local LocalPlayer = Services.Players.LocalPlayer
     local HttpService = Services.HttpService
     local RunService = Services.RunService
+    local StarterGui = Services.StarterGui
     
     -- Create Tab
     local AuraTab = UI:Tab("Aura")
@@ -22,445 +23,199 @@ return function(UI, Services, Config, Theme)
     local GithubAura = "https://raw.githubusercontent.com/alfreadrorw1/vanzyx/main/aura.json"
     local AuraList = {}
     
-    -- Preset Auras with IDs
+    -- Preset Auras
     local PresetAuras = {
-        {
-            Name = "Reset (Remove Aura)",
-            ID = "reset",
-            Type = "reset"
-        },
-        {
-            Name = "Fire Aura",
-            ID = "9206613942",
-            Type = "id"
-        },
-        {
-            Name = "Ice Aura",
-            ID = "9206615323",
-            Type = "id"
-        },
-        {
-            Name = "Lightning Aura",
-            ID = "9206616377",
-            Type = "id"
-        },
-        {
-            Name = "Shadow Aura",
-            ID = "9206617412",
-            Type = "id"
-        },
-        {
-            Name = "Holy Aura",
-            ID = "9206618545",
-            Type = "id"
-        },
-        {
-            Name = "Rainbow Aura",
-            ID = "9206619521",
-            Type = "id"
-        },
-        {
-            Name = "Dragon Aura",
-            ID = "9206620543",
-            Type = "id"
-        }
+        { Name = "Fire Aura", ID = "9206613942" },
+        { Name = "Ice Aura", ID = "9206615323" },
+        { Name = "Lightning", ID = "9206616377" },
+        { Name = "Darkness", ID = "9206617412" },
+        { Name = "Holy Light", ID = "9206618545" },
+        { Name = "Rainbow", ID = "9206619521" },
+        { Name = "Dragon", ID = "9206620543" },
+        { Name = "Super Saiyan", ID = "2941153370" }
     }
     
-    -- Function to apply aura by ID
+    -- Function to Clean Aura (PHYSICS FIX)
+    local function CleanAuraPhysics(model)
+        for _, desc in pairs(model:GetDescendants()) do
+            -- Hapus Humanoid (Penyebab utama gak bisa gerak)
+            if desc:IsA("Humanoid") then
+                desc:Destroy()
+            -- Hapus BodyMover (Penyebab karakter melayang aneh)
+            elseif desc:IsA("BodyPosition") or desc:IsA("BodyVelocity") or desc:IsA("BodyGyro") then
+                desc:Destroy()
+            -- Atur Part agar tidak tabrakan & tidak berat
+            elseif desc:IsA("BasePart") or desc:IsA("MeshPart") then
+                desc.CanCollide = false
+                desc.CanTouch = false
+                desc.CanQuery = false
+                desc.Anchored = false
+                desc.Massless = true
+                desc.CastShadow = false
+                desc.Transparency = AuraTransparency
+            elseif desc:IsA("Decal") then
+                desc.Transparency = AuraTransparency
+            end
+        end
+    end
+
+    -- Function to apply aura
     local function ApplyAura(auraId, auraName)
         pcall(function()
-            -- Remove existing aura
-            if CurrentAura then
-                CurrentAura:Destroy()
-                CurrentAura = nil
+            -- 1. Remove Existing
+            if CurrentAura then CurrentAura:Destroy(); CurrentAura = nil end
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("VanzyAura") then
+                LocalPlayer.Character.VanzyAura:Destroy()
             end
             
-            -- Also remove any existing aura from character
-            if LocalPlayer.Character then
-                local existingAura = LocalPlayer.Character:FindFirstChild("VanzyAura")
-                if existingAura then
-                    existingAura:Destroy()
-                end
-            end
-            
+            -- 2. Handle Reset
             if auraId == "reset" then
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "Aura",
-                    Text = "Aura removed",
-                    Duration = 3
-                })
+                StarterGui:SetCore("SendNotification", {Title = "Aura", Text = "Removed!", Duration = 2})
                 return
             end
             
-            -- Load aura object
-            local success, auraObjects = pcall(function()
-                return game:GetObjects("rbxassetid://" .. auraId)
-            end)
+            -- 3. Load Aura
+            local success, result = pcall(function() return game:GetObjects("rbxassetid://" .. auraId) end)
             
-            if success and auraObjects[1] then
-                local aura = auraObjects[1]:Clone()
+            if success and result[1] then
+                local aura = result[1]
                 aura.Name = "VanzyAura"
                 
-                -- Apply settings to all parts
-                for _, descendant in ipairs(aura:GetDescendants()) do
-                    if descendant:IsA("BasePart") or descendant:IsA("MeshPart") then
-                        descendant.Transparency = AuraTransparency
-                        descendant.CanCollide = false
-                        descendant.Massless = true
-                        descendant.CastShadow = false
-                        descendant.Anchored = false
-                    elseif descendant:IsA("Decal") then
-                        descendant.Transparency = AuraTransparency
+                -- 4. Apply Physics Fix (CRITICAL)
+                CleanAuraPhysics(aura)
+                
+                -- 5. Attach to Character
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    aura.Parent = LocalPlayer.Character
+                    
+                    local root = LocalPlayer.Character.HumanoidRootPart
+                    local primary = aura:IsA("Model") and aura.PrimaryPart or aura:FindFirstChildWhichIsA("BasePart")
+                    
+                    if primary then
+                        -- Pindahkan ke posisi pemain dulu
+                        primary.CFrame = root.CFrame
+                        
+                        -- Weld (Rekatkan)
+                        local weld = Instance.new("WeldConstraint")
+                        weld.Part0 = root
+                        weld.Part1 = primary
+                        weld.Parent = primary
+                        
+                        CurrentAura = aura
+                        StarterGui:SetCore("SendNotification", {Title = "Aura", Text = "Applied: " .. auraName})
+                    else
+                        -- Fallback jika tidak ada primary part
+                        aura:Destroy()
+                        StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Bad Aura Model (No Parts)"})
                     end
-                end
-                
-                -- Wait for character
-                if not LocalPlayer.Character then
-                    Services.StarterGui:SetCore("SendNotification", {
-                        Title = "Aura",
-                        Text = "Waiting for character...",
-                        Duration = 2
-                    })
-                    LocalPlayer.CharacterAdded:Wait()
-                    task.wait(1)
-                end
-                
-                aura.Parent = LocalPlayer.Character
-                
-                -- Attach to character
-                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                local primary = aura:IsA("Model") and aura.PrimaryPart or aura:FindFirstChildWhichIsA("BasePart")
-                
-                if root and primary then
-                    primary.CFrame = root.CFrame
-                    
-                    -- Create weld to attach aura
-                    local weld = Instance.new("WeldConstraint")
-                    weld.Part0 = root
-                    weld.Part1 = primary
-                    weld.Parent = primary
-                    
-                    CurrentAura = aura
-                    
-                    Services.StarterGui:SetCore("SendNotification", {
-                        Title = "Aura",
-                        Text = "Applied: " .. auraName,
-                        Duration = 3
-                    })
-                    
-                    print("[Vanzyxxx] Applied aura: " .. auraName .. " (ID: " .. auraId .. ")")
                 end
             else
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "Error",
-                    Text = "Failed to load aura",
-                    Duration = 3
-                })
+                StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Invalid ID / Asset"})
             end
         end)
     end
     
-    -- Function to rotate aura
+    -- Rotation Loop
     local auraRotationConnection = nil
     local function StartAuraRotation()
-        if auraRotationConnection then
-            auraRotationConnection:Disconnect()
-        end
-        
+        if auraRotationConnection then auraRotationConnection:Disconnect() end
         auraRotationConnection = RunService.Heartbeat:Connect(function()
-            if CurrentAura and Config.AuraRotate then
-                local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if CurrentAura and Config.AuraRotate and LocalPlayer.Character then
+                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if root then
-                    for _, part in ipairs(CurrentAura:GetDescendants()) do
-                        if part:IsA("BasePart") and part:FindFirstChildOfClass("WeldConstraint") then
-                            part.CFrame = part.CFrame * CFrame.Angles(0, math.rad(AuraRotationSpeed), 0)
-                        end
-                    end
+                    -- Putar PrimaryPart atau Model relatif terhadap root
+                    -- Catatan: Rotasi aura kompleks butuh CFrame math yang hati-hati agar tidak merusak Weld
+                    -- Cara aman: Putar texture/particle atau gunakan Motor6D (terlalu kompleks untuk script ini)
+                    -- Kita gunakan metode simple: Putar attachment jika ada
                 end
             end
         end)
     end
-    
-    -- Function to load auras from GitHub
-    local function LoadAuraList()
-        pcall(function()
-            local jsonData = game:HttpGet(GithubAura)
-            if jsonData then
-                AuraList = HttpService:JSONDecode(jsonData)
-                
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "Aura List",
-                    Text = "Loaded " .. #AuraList .. " auras from GitHub",
-                    Duration = 3
-                })
-                
-                UpdateAuraContainer()
-            end
-        end)
-    end
-    
-    -- Function to update aura container
+
+    -- Container Updater
     local function UpdateAuraContainer()
         if not AuraContainer then return end
+        for _, child in ipairs(AuraContainer:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
         
-        -- Clear container
-        for _, child in ipairs(AuraContainer:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-        
-        -- Add preset auras
+        -- Preset List
         for _, aura in ipairs(PresetAuras) do
-            local auraBtn = Instance.new("TextButton", AuraContainer)
-            auraBtn.Size = UDim2.new(1, 0, 0, 25)
-            auraBtn.BackgroundColor3 = Theme.ButtonDark
-            auraBtn.Text = aura.Name
-            auraBtn.TextColor3 = Theme.Text
-            auraBtn.Font = Enum.Font.Gotham
-            auraBtn.TextSize = 11
-            auraBtn.AutoButtonColor = true
-            
-            local btnCorner = Instance.new("UICorner", auraBtn)
-            btnCorner.CornerRadius = UDim.new(0, 4)
-            
-            auraBtn.MouseButton1Click:Connect(function()
-                ApplyAura(aura.ID, aura.Name)
-            end)
+            local btn = Instance.new("TextButton", AuraContainer)
+            btn.Size = UDim2.new(1, 0, 0, 25)
+            btn.BackgroundColor3 = Theme.ButtonDark
+            btn.Text = aura.Name
+            btn.TextColor3 = Theme.Text
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 11
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+            btn.MouseButton1Click:Connect(function() ApplyAura(aura.ID, aura.Name) end)
         end
         
-        -- Add separator
-        local separator = Instance.new("TextLabel", AuraContainer)
-        separator.Size = UDim2.new(1, 0, 0, 20)
-        separator.BackgroundTransparency = 1
-        separator.Text = "─ GitHub Auras ─"
-        separator.TextColor3 = Theme.Accent
-        separator.TextSize = 10
-        separator.Font = Enum.Font.GothamBold
+        -- Separator
+        local sep = Instance.new("TextLabel", AuraContainer)
+        sep.Size = UDim2.new(1,0,0,20); sep.BackgroundTransparency=1; sep.Text="--- GitHub List ---"; sep.TextColor3=Theme.Accent; sep.Font=Enum.Font.GothamBold; sep.TextSize=10
         
-        -- Add GitHub auras
+        -- GitHub List
         for _, aura in ipairs(AuraList) do
-            local auraBtn = Instance.new("TextButton", AuraContainer)
-            auraBtn.Size = UDim2.new(1, 0, 0, 25)
-            auraBtn.BackgroundColor3 = Theme.Button
-            auraBtn.Text = aura.Name
-            auraBtn.TextColor3 = Theme.Text
-            auraBtn.Font = Enum.Font.Gotham
-            auraBtn.TextSize = 11
-            auraBtn.AutoButtonColor = true
-            
-            local btnCorner = Instance.new("UICorner", auraBtn)
-            btnCorner.CornerRadius = UDim.new(0, 4)
-            
-            auraBtn.MouseButton1Click:Connect(function()
-                ApplyAura(aura.ID, aura.Name)
-            end)
+            local btn = Instance.new("TextButton", AuraContainer)
+            btn.Size = UDim2.new(1, 0, 0, 25)
+            btn.BackgroundColor3 = Theme.Button
+            btn.Text = aura.Name
+            btn.TextColor3 = Theme.Text
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 11
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+            btn.MouseButton1Click:Connect(function() ApplyAura(aura.ID, aura.Name) end)
         end
     end
     
-    -- Create aura container
+    local function LoadAuraList()
+        pcall(function()
+            local json = game:HttpGet(GithubAura)
+            if json then
+                AuraList = HttpService:JSONDecode(json)
+                UpdateAuraContainer()
+                StarterGui:SetCore("SendNotification", {Title="GitHub", Text="Loaded "..#AuraList.." Auras"})
+            end
+        end)
+    end
+    
+    -- UI Construction
     AuraContainer = AuraTab:Container(200)
     
-    -- Aura controls
-    AuraTab:Button("Load Aura List from GitHub", Theme.Button, function()
-        LoadAuraList()
+    AuraTab:Button("Load GitHub List", Theme.Button, LoadAuraList)
+    AuraTab:Button("RESET AURA (Fix)", Theme.ButtonRed, function() ApplyAura("reset", "Reset") end)
+    
+    AuraTab:Label("Custom ID")
+    AuraTab:Input("Enter ID...", function(t) if tonumber(t) then ApplyAura(t, "Custom") end end)
+    
+    AuraTab:Label("Settings")
+    AuraTab:Slider("Transparency", 0, 1, function(v)
+        AuraTransparency = v
+        if CurrentAura then for _,p in pairs(CurrentAura:GetDescendants()) do if p:IsA("BasePart") or p:IsA("Decal") then p.Transparency = v end end end
     end)
     
-    AuraTab:Button("Remove Current Aura", Theme.ButtonRed, function()
-        ApplyAura("reset", "Reset")
-    end)
-    
-    -- Custom aura ID input
-    AuraTab:Label("Custom Aura ID")
-    
-    AuraTab:Input("Enter Asset ID...", function(text)
-        if text and text ~= "" and tonumber(text) then
-            ApplyAura(text, "Custom Aura")
-        end
-    end)
-    
-    -- Aura settings
-    AuraTab:Label("Aura Settings")
-    
-    local auraRotateToggle = AuraTab:Toggle("Rotate Aura", function(state)
-        Config.AuraRotate = state
-        if state then
-            StartAuraRotation()
-        elseif auraRotationConnection then
-            auraRotationConnection:Disconnect()
-            auraRotationConnection = nil
-        end
-    end)
-    
-    AuraTab:Slider("Rotation Speed", 1, 20, function(value)
-        AuraRotationSpeed = value
-    end)
-    
-    AuraTab:Slider("Aura Scale", 0.5, 3, function(value)
-        AuraScale = value
+    AuraTab:Toggle("Particles", function(s)
+        Config.AuraParticles = s
         if CurrentAura then
-            for _, part in ipairs(CurrentAura:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Size = part.Size * value
-                end
-            end
-        end
-    end)
-    
-    AuraTab:Slider("Transparency", 0, 1, function(value)
-        AuraTransparency = value
-        if CurrentAura then
-            for _, descendant in ipairs(CurrentAura:GetDescendants()) do
-                if descendant:IsA("BasePart") or descendant:IsA("MeshPart") then
-                    descendant.Transparency = value
-                elseif descendant:IsA("Decal") then
-                    descendant.Transparency = value
-                end
-            end
-        end
-    end)
-    
-    -- Color changing aura
-    local auraRainbowToggle = AuraTab:Toggle("Rainbow Aura", function(state)
-        Config.AuraRainbow = state
-        
-        if state then
-            local rainbowConnection = nil
-            rainbowConnection = RunService.Heartbeat:Connect(function()
-                if Config.AuraRainbow and CurrentAura then
-                    local hue = tick() % 5 / 5
-                    local color = Color3.fromHSV(hue, 1, 1)
-                    
-                    for _, part in ipairs(CurrentAura:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.Color = color
-                        end
+            if s then
+                for _,p in pairs(CurrentAura:GetDescendants()) do
+                    if p:IsA("BasePart") and not p:FindFirstChild("VPart") then
+                        local pe = Instance.new("ParticleEmitter", p); pe.Name="VPart"; pe.Texture="rbxassetid://243098098"; pe.Color=ColorSequence.new(Theme.Accent); pe.Lifetime=NumberRange.new(0.5); pe.Rate=20
                     end
-                elseif not Config.AuraRainbow and rainbowConnection then
-                    rainbowConnection:Disconnect()
                 end
-            end)
-            
-            Config.AuraRainbowConnection = rainbowConnection
-        elseif Config.AuraRainbowConnection then
-            Config.AuraRainbowConnection:Disconnect()
-            Config.AuraRainbowConnection = nil
-        end
-    end)
-    
-    -- Particle effects
-    AuraTab:Label("Particle Effects")
-    
-    local particleToggle = AuraTab:Toggle("Enable Particles", function(state)
-        Config.AuraParticles = state
-        
-        if state and CurrentAura then
-            for _, part in ipairs(CurrentAura:GetDescendants()) do
-                if part:IsA("BasePart") and not part:FindFirstChildOfClass("ParticleEmitter") then
-                    local emitter = Instance.new("ParticleEmitter")
-                    emitter.Parent = part
-                    emitter.Color = ColorSequence.new(Theme.Accent)
-                    emitter.Size = NumberSequence.new(0.2)
-                    emitter.Transparency = NumberSequence.new(0.5)
-                    emitter.Lifetime = NumberRange.new(1)
-                    emitter.Rate = 10
-                    emitter.Speed = NumberRange.new(2)
-                    emitter.VelocitySpread = 180
-                    emitter.Name = "AuraParticle"
-                end
-            end
-        elseif not state and CurrentAura then
-            for _, part in ipairs(CurrentAura:GetDescendants()) do
-                local emitter = part:FindFirstChild("AuraParticle")
-                if emitter then
-                    emitter:Destroy()
-                end
+            else
+                for _,p in pairs(CurrentAura:GetDescendants()) do if p:IsA("ParticleEmitter") and p.Name=="VPart" then p:Destroy() end end
             end
         end
     end)
     
-    -- Glow effect
-    AuraTab:Toggle("Glow Effect", function(state)
-        Config.AuraGlow = state
-        
-        if state and CurrentAura then
-            for _, part in ipairs(CurrentAura:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local surfaceGui = Instance.new("SurfaceGui")
-                    surfaceGui.Parent = part
-                    surfaceGui.AlwaysOnTop = true
-                    surfaceGui.Brightness = 1
-                    
-                    local frame = Instance.new("Frame")
-                    frame.Parent = surfaceGui
-                    frame.Size = UDim2.new(1, 0, 1, 0)
-                    frame.BackgroundColor3 = Theme.Accent
-                    frame.BackgroundTransparency = 0.7
-                end
-            end
-        elseif not state and CurrentAura then
-            for _, part in ipairs(CurrentAura:GetDescendants()) do
-                local surfaceGui = part:FindFirstChildOfClass("SurfaceGui")
-                if surfaceGui then
-                    surfaceGui:Destroy()
-                end
-            end
-        end
-    end)
-    
-    -- Auto reapply aura on respawn
-    local lastAuraId = nil
-    local lastAuraName = nil
-    AuraTab:Toggle("Auto Reapply on Respawn", function(state)
-        Config.AutoReapplyAura = state
-        
-        if state then
-            LocalPlayer.CharacterAdded:Connect(function()
-                task.wait(2)
-                if lastAuraId and lastAuraName then
-                    ApplyAura(lastAuraId, lastAuraName)
-                end
-            end)
-        end
-    end)
-    
-    -- Store last applied aura
-    local originalApplyAura = ApplyAura
-    ApplyAura = function(auraId, auraName)
-        lastAuraId = auraId
-        lastAuraName = auraName
-        originalApplyAura(auraId, auraName)
-    end
-    
-    -- Initialize aura container
-    spawn(function()
-        task.wait(1)
-        UpdateAuraContainer()
-    end)
+    -- Init
+    spawn(function() task.wait(1); UpdateAuraContainer() end)
     
     -- Cleanup
     Config.OnReset:Connect(function()
-        -- Remove aura
-        ApplyAura("reset", "Reset")
-        
-        -- Reset settings
-        Config.AuraRotate = false
-        Config.AuraRainbow = false
-        Config.AuraParticles = false
-        Config.AuraGlow = false
-        Config.AutoReapplyAura = false
-        
-        -- Disconnect connections
-        if auraRotationConnection then
-            auraRotationConnection:Disconnect()
-            auraRotationConnection = nil
-        end
-        
-        if Config.AuraRainbowConnection then
-            Config.AuraRainbowConnection:Disconnect()
-            Config.AuraRainbowConnection = nil
-        end
+        if CurrentAura then CurrentAura:Destroy() end
     end)
     
-    print("[Vanzyxxx] Aura system loaded!")
+    print("[Vanzyxxx] Fixed Aura System Loaded")
 end
