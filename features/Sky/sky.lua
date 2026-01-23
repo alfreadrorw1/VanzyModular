@@ -12,7 +12,7 @@ return function(UI, Services, Config, Theme)
     
     -- Variables
     local SkyContainer = nil
-    local GithubSky = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/JsonLoad/main/sky.json"
+    local GithubSky = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/main/JsonLoad/sky.json"
     local SkyList = {} -- Data akan masuk ke sini dari GitHub
 
     -- [FIX] Fungsi Apply Sky yang Pintar

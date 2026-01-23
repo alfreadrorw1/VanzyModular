@@ -14,7 +14,7 @@ return function(UI, Services, Config, Theme)
     -- Variables
     local CurrentAura = nil
     local AuraContainer = nil
-    local GithubAura = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/JsonLoad/main/aura.json"
+    local GithubAura = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/main/JsonLoad/aura.json"
     local AuraList = {} -- Data akan masuk ke sini dari GitHub
     
     -- [FIX] Fungsi untuk membersihkan Aura agar tidak bikin macet/berat
