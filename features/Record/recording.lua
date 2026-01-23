@@ -17,38 +17,29 @@ return function(UI, Services, Config, Theme)
     local RecordConnection = nil
     
     -- Variables for Replay Logic
-    local ReplayQueue = {} -- Queue for Checkpoints (CP1, CP2...)
-    local QueueIndex = 0
-    local LoadedTracks = {} -- Cache for animations
-    local LastValidPos = nil -- For resuming logic
-
-    -- // FILE SYSTEM & PATHS //
+    local ReplayQueue = {} 
+    local LoadedTracks = {} 
+    
+    -- // FILE SYSTEM //
     local RootFolder = "VanzyData"
     local RecordsFolder = RootFolder .. "/Records"
     
-    -- Get Map Name (Sanitized)
     local MapName = "UnknownMap"
     pcall(function()
         local info = MarketplaceService:GetProductInfo(game.PlaceId)
-        MapName = info.Name:gsub("%W", "") -- Remove special chars
+        MapName = info.Name:gsub("%W", "") 
     end)
     if MapName == "" then MapName = tostring(game.PlaceId) end
     
     local MapFolder = RecordsFolder .. "/" .. MapName
 
-    -- Ensure Folders Exist
     if not isfolder(RootFolder) then makefolder(RootFolder) end
     if not isfolder(RecordsFolder) then makefolder(RecordsFolder) end
     if not isfolder(MapFolder) then makefolder(MapFolder) end
 
     -- // UTILITIES //
-    
-    -- [Precision] 5 decimals to reduce float size but keep smoothness
-    local function cn(num)
-        return math.floor(num * 100000) / 100000
-    end
+    local function cn(num) return math.floor(num * 100000) / 100000 end
 
-    -- [Serialization]
     local function SerializeCFrame(cf)
         local x, y, z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = cf:GetComponents()
         return {cn(x), cn(y), cn(z), R00, R01, R02, R10, R11, R12, R20, R21, R22}
@@ -58,13 +49,11 @@ return function(UI, Services, Config, Theme)
         return CFrame.new(t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], t[9], t[10], t[11], t[12])
     end
 
-    -- [Animation Scanner]
     local function GetActiveAnimations(humanoid)
         local anims = {}
         local animator = humanoid:FindFirstChildOfClass("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                -- Filter core animations if needed, but capturing all is safer for realism
                 if track.Animation.AnimationId and track.IsPlaying then
                     table.insert(anims, {
                         id = track.Animation.AnimationId,
@@ -79,32 +68,28 @@ return function(UI, Services, Config, Theme)
         return anims
     end
 
-    -- [Notification Helper]
     local function Notify(title, text)
-        StarterGui:SetCore("SendNotification", {
-            Title = title;
-            Text = text;
-            Duration = 3;
-        })
+        StarterGui:SetCore("SendNotification", {Title = title; Text = text; Duration = 3;})
     end
 
-    -- // UI WIDGET //
+    -- // FLOATING WIDGET UI //
     local WidgetGui = Instance.new("ScreenGui")
     WidgetGui.Name = "VanzyRecorderWidget"
+    WidgetGui.Enabled = false -- [FIX] Default Hidden
     if syn and syn.protect_gui then syn.protect_gui(WidgetGui) end
     WidgetGui.Parent = Services.CoreGui
 
     local WidgetFrame = Instance.new("Frame", WidgetGui)
-    WidgetFrame.Size = UDim2.new(0, 180, 0, 50) -- Sedikit lebih lebar
+    WidgetFrame.Size = UDim2.new(0, 200, 0, 70) -- [FIX] Lebih besar agar button muat
     WidgetFrame.Position = UDim2.new(0.8, 0, 0.2, 0)
-    WidgetFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    WidgetFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     WidgetFrame.BorderSizePixel = 0
     
     local WCorner = Instance.new("UICorner", WidgetFrame)
     WCorner.CornerRadius = UDim.new(0, 8)
     local WStroke = Instance.new("UIStroke", WidgetFrame)
     WStroke.Color = Theme.Accent
-    WStroke.Thickness = 1.5
+    WStroke.Thickness = 2
 
     -- Drag Logic
     local dragging, dragInput, dragStart, startPos
@@ -123,62 +108,58 @@ return function(UI, Services, Config, Theme)
         end
     end)
 
+    -- Status Label
     local StatusLabel = Instance.new("TextLabel", WidgetFrame)
-    StatusLabel.Size = UDim2.new(1, 0, 0, 15)
-    StatusLabel.Position = UDim2.new(0, 0, 1, -15)
+    StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+    StatusLabel.Position = UDim2.new(0, 0, 0, 5)
     StatusLabel.BackgroundTransparency = 1
-    StatusLabel.Text = "READY - " .. MapName
-    StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    StatusLabel.TextSize = 10
-    StatusLabel.Font = Enum.Font.Gotham
+    StatusLabel.Text = "READY"
+    StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    StatusLabel.TextSize = 12
+    StatusLabel.Font = Enum.Font.GothamBold
+    StatusLabel.ZIndex = 2
 
-    local function CreateMiniBtn(text, color, pos, callback)
+    -- [FIX] Helper Button Function dengan ZIndex tinggi
+    local function CreateMiniBtn(text, color, pos, size, callback)
         local btn = Instance.new("TextButton", WidgetFrame)
-        btn.Size = UDim2.new(0, 30, 0, 30)
+        btn.Size = size
         btn.Position = pos
         btn.BackgroundColor3 = color
         btn.Text = text
         btn.TextColor3 = Color3.white
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 14
+        btn.ZIndex = 5 -- [FIX] Pastikan di atas layer lain
+        
         local corn = Instance.new("UICorner", btn)
         corn.CornerRadius = UDim.new(0, 6)
+        
         btn.MouseButton1Click:Connect(callback)
         return btn
     end
 
-    -- // CORE: RECORDING //
+    -- // LOGIC FUNCTIONS //
+    
     local function StartRecording()
         if Recording or Replaying then return end
         local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        if not char then return end
 
         Recording = true
         StartTime = os.clock()
-        CurrentRecord = {
-            Frames = {}, 
-            Metadata = {
-                Map = MapName, 
-                Date = os.date("%x"),
-                StartPos = SerializeCFrame(char.HumanoidRootPart.CFrame)
-            }
-        }
+        CurrentRecord = {Frames = {}, Metadata = {Map = MapName}}
         
-        StatusLabel.Text = "REC ●"
+        StatusLabel.Text = "RECORDING ●"
         StatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
         WStroke.Color = Color3.fromRGB(255, 50, 50)
 
         RecordConnection = RunService.Heartbeat:Connect(function()
             if not Recording then return end
-            local char = LocalPlayer.Character
-            if not char then return end
-            
             local hrp = char:FindFirstChild("HumanoidRootPart")
             local hum = char:FindFirstChild("Humanoid")
-            
             if hrp and hum then
                 table.insert(CurrentRecord.Frames, {
-                    t = os.clock() - StartTime, -- Exact Delta Time
+                    t = os.clock() - StartTime,
                     cf = SerializeCFrame(hrp.CFrame),
                     anims = GetActiveAnimations(hum)
                 })
@@ -191,54 +172,24 @@ return function(UI, Services, Config, Theme)
         Recording = false
         if RecordConnection then RecordConnection:Disconnect() end
         
-        StatusLabel.Text = "SAVING..."
-        WStroke.Color = Theme.Accent
-
-        -- Auto name handling
-        local finalName = saveName
-        if not finalName then
-            finalName = "Rec_" .. math.floor(os.time())
-        end
+        local finalName = saveName or ("Rec_" .. math.floor(os.time()))
         if not finalName:find(".json") then finalName = finalName .. ".json" end
 
         writefile(MapFolder .. "/" .. finalName, HttpService:JSONEncode(CurrentRecord))
-        Notify("Saved", finalName .. " to " .. MapFolder)
+        Notify("Saved", finalName)
         StatusLabel.Text = "READY"
-        StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+        StatusLabel.TextColor3 = Color3.white
+        WStroke.Color = Theme.Accent
     end
 
-    -- // CORE: REPLAY ENGINE //
-
-    -- Function to stop replay and clean up
+    -- Global Stop
     function StopReplay()
         if _G.StopReplayInternal then _G.StopReplayInternal() end
     end
 
-    -- Helper: Find closest frame index to current player position (Smart Resume)
-    local function FindClosestFrameIndex(frames, currentPos)
-        local closestIndex = 1
-        local minDist = 999999
-        
-        -- Optimization: Scan with step of 10 to find rough area, then refine
-        for i = 1, #frames, 5 do
-            local dataCF = DeserializeCFrame(frames[i].cf)
-            local dist = (dataCF.Position - currentPos).Magnitude
-            if dist < minDist then
-                minDist = dist
-                closestIndex = i
-            end
-        end
-        
-        -- If closest point is too far (> 50 studs), probably assume start
-        if minDist > 50 then return 1 end
-        return closestIndex
-    end
-
-    -- The Main Play Function
     local function PlayReplayData(data, useSmartResume, onComplete)
         if not data or not data.Frames or #data.Frames < 2 then 
-            if onComplete then onComplete() end
-            return 
+            if onComplete then onComplete() end return 
         end
 
         Replaying = true
@@ -247,298 +198,213 @@ return function(UI, Services, Config, Theme)
         WStroke.Color = Color3.fromRGB(50, 255, 100)
 
         local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChild("Humanoid")
-        local animator = hum and hum:FindFirstChildOfClass("Animator")
+        local hrp = char.HumanoidRootPart
+        local hum = char.Humanoid
+        local animator = hum:FindFirstChildOfClass("Animator")
 
-        if not hrp or not hum then 
-            StopReplay() 
-            return 
-        end
-
-        -- Setup Character
         hrp.Anchored = true
         hum.AutoRotate = false
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = false end
-        end
+        for _, v in pairs(char:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
 
-        -- Determine Start Index
         local startIndex = 1
         if useSmartResume then
-            startIndex = FindClosestFrameIndex(data.Frames, hrp.Position)
-            Notify("Smart Resume", "Starting from frame: " .. startIndex .. "/" .. #data.Frames)
+            local minDist = 999999
+            for i = 1, #data.Frames, 10 do
+                local dist = (DeserializeCFrame(data.Frames[i].cf).Position - hrp.Position).Magnitude
+                if dist < minDist then minDist = dist; startIndex = i end
+            end
+            if minDist > 50 then startIndex = 1 end
         end
 
-        -- If at the end, reset to 1
-        if startIndex >= #data.Frames - 5 then startIndex = 1 end
-
-        -- Initial Teleport
-        local startFrame = data.Frames[startIndex]
-        hrp.CFrame = DeserializeCFrame(startFrame.cf)
-
-        local startTimeOffset = startFrame.t
-        local replayStartReal = os.clock()
+        local startT = os.clock()
         local frameIndex = startIndex
-
-        -- Clear old tracks cache
+        local startTimeOffset = data.Frames[startIndex].t
         LoadedTracks = {}
 
-        RunService:BindToRenderStep("VanzyReplay", Enum.RenderPriority.Camera.Value - 1, function()
+        RunService:BindToRenderStep("VanzyReplay", 2000, function()
             if not Replaying or not LocalPlayer.Character then StopReplay() return end
-            
-            -- Enforce Anchor
-            if hrp.Anchored == false then hrp.Anchored = true end
+            hrp.Anchored = true 
 
-            -- Calculate Logic Time
-            local timeElapsed = os.clock() - replayStartReal
-            local currentLogicTime = startTimeOffset + timeElapsed
+            local timeElapsed = os.clock() - startT
+            local logicTime = startTimeOffset + timeElapsed
+            local curFrame, nextFrame = data.Frames[frameIndex], data.Frames[frameIndex+1]
 
-            -- Advance Frames
-            local currentFrame = data.Frames[frameIndex]
-            local nextFrame = data.Frames[frameIndex + 1]
+            if not nextFrame then StopReplay(); if onComplete then onComplete() end return end
 
-            -- Check completion
-            if not nextFrame then
-                StopReplay()
-                if onComplete then onComplete() end
-                return
-            end
-
-            -- Fast forward if lag behind
-            while nextFrame and currentLogicTime > nextFrame.t do
+            while nextFrame and logicTime > nextFrame.t do
                 frameIndex = frameIndex + 1
-                currentFrame = data.Frames[frameIndex]
-                nextFrame = data.Frames[frameIndex + 1]
+                curFrame = data.Frames[frameIndex]
+                nextFrame = data.Frames[frameIndex+1]
             end
-
             if not nextFrame then return end
 
-            -- INTERPOLATION (Smoothness)
-            local alpha = (currentLogicTime - currentFrame.t) / (nextFrame.t - currentFrame.t)
-            alpha = math.clamp(alpha, 0, 1)
+            local alpha = math.clamp((logicTime - curFrame.t) / (nextFrame.t - curFrame.t), 0, 1)
+            hrp.CFrame = DeserializeCFrame(curFrame.cf):Lerp(DeserializeCFrame(nextFrame.cf), alpha)
 
-            local cf1 = DeserializeCFrame(currentFrame.cf)
-            local cf2 = DeserializeCFrame(nextFrame.cf)
-            hrp.CFrame = cf1:Lerp(cf2, alpha)
-
-            -- ANIMATION SYNC
-            if currentFrame.anims and animator then
-                local activeIds = {}
-                for _, animData in ipairs(currentFrame.anims) do
-                    activeIds[animData.id] = true
-                    
-                    local track = LoadedTracks[animData.id]
-                    if not track then
-                        local animation = Instance.new("Animation")
-                        animation.AnimationId = animData.id
-                        track = animator:LoadAnimation(animation)
-                        LoadedTracks[animData.id] = track
+            if curFrame.anims and animator then
+                local active = {}
+                for _, a in ipairs(curFrame.anims) do
+                    active[a.id] = true
+                    local t = LoadedTracks[a.id]
+                    if not t then
+                        local anim = Instance.new("Animation"); anim.AnimationId = a.id
+                        t = animator:LoadAnimation(anim); LoadedTracks[a.id] = t
                     end
-
-                    if not track.IsPlaying then track:Play(0.1) end
-                    
-                    -- Sync Properties
-                    if math.abs(track.Speed - animData.s) > 0.01 then track:AdjustSpeed(animData.s) end
-                    if math.abs(track.WeightTarget - animData.w) > 0.01 then track:AdjustWeight(animData.w) end
-                    
-                    -- Only hard-sync time if desync is noticeable (> 0.2s) to prevent audio/visual stutter
-                    if math.abs(track.TimePosition - animData.t) > 0.2 then
-                        track.TimePosition = animData.t
-                    end
+                    if not t.IsPlaying then t:Play(0.1) end
+                    if math.abs(t.Speed - a.s) > 0.01 then t:AdjustSpeed(a.s) end
+                    if math.abs(t.WeightTarget - a.w) > 0.01 then t:AdjustWeight(a.w) end
+                    if math.abs(t.TimePosition - a.t) > 0.25 then t.TimePosition = a.t end
                 end
-
-                -- Stop inactive tracks
-                for id, track in pairs(LoadedTracks) do
-                    if not activeIds[id] and track.IsPlaying then
-                        track:Stop(0.2)
-                    end
-                end
+                for id, t in pairs(LoadedTracks) do if not active[id] then t:Stop(0.2) end end
             end
         end)
 
-        -- Clean Up Internal
         _G.StopReplayInternal = function()
             RunService:UnbindFromRenderStep("VanzyReplay")
             Replaying = false
             if LocalPlayer.Character then
-                local h = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                local hm = LocalPlayer.Character:FindFirstChild("Humanoid")
-                if h then h.Anchored = false end
-                if hm then hm.AutoRotate = true end
+                LocalPlayer.Character.HumanoidRootPart.Anchored = false
+                LocalPlayer.Character.Humanoid.AutoRotate = true
             end
-            for _, track in pairs(LoadedTracks) do track:Stop() end
+            for _, t in pairs(LoadedTracks) do t:Stop() end
             StatusLabel.Text = "READY"
-            StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+            StatusLabel.TextColor3 = Color3.white
             WStroke.Color = Theme.Accent
         end
     end
 
-    -- // CHECKPOINT CHAIN LOGIC //
     local function PlayAllCheckpoints()
-        -- 1. Get all CP files and Sort them
         local files = listfiles(MapFolder)
-        local sortedCPs = {}
-        
-        for _, file in ipairs(files) do
-            local name = string.gsub(file, MapFolder .. "/", "")
-            -- Filter only CP files if naming convention is used, or just all JSONs
-            if name:find(".json") then
-                table.insert(sortedCPs, {path = file, name = name})
-            end
-        end
+        local sorted = {}
+        for _, f in ipairs(files) do if f:find(".json") then table.insert(sorted, f) end end
+        table.sort(sorted)
 
-        -- Simple sort by name (CP_1, CP_2)
-        table.sort(sortedCPs, function(a, b) return a.name < b.name end)
-
-        if #sortedCPs == 0 then Notify("Error", "No recordings found in " .. MapName) return end
-
-        -- 2. Determine where to start based on player position (Global Smart Resume)
-        local startIndex = 1
         local char = LocalPlayer.Character
-        local bestDist = 999999
-        
-        -- Cek CP mana yang paling dekat dengan player saat ini
-        for i, cp in ipairs(sortedCPs) do
-            local content = readfile(cp.path)
-            local data = HttpService:JSONDecode(content)
-            if data.Frames and #data.Frames > 0 then
-                local startCF = DeserializeCFrame(data.Frames[1].cf)
-                local dist = (char.HumanoidRootPart.Position - startCF.Position).Magnitude
-                
-                -- Jika dekat dengan awal CP ini, mungkin kita mau mulai dari sini
-                -- Atau kita bisa cek frame tengah juga (lebih berat)
-                if dist < bestDist then
-                    bestDist = dist
-                    startIndex = i
-                end
+        local bestIdx, bestDist = 1, 999999
+
+        for i, f in ipairs(sorted) do
+            local d = HttpService:JSONDecode(readfile(f))
+            if d.Frames[1] then
+                local dist = (DeserializeCFrame(d.Frames[1].cf).Position - char.HumanoidRootPart.Position).Magnitude
+                if dist < bestDist then bestDist = dist; bestIdx = i end
             end
         end
 
-        Notify("Chain Play", "Starting chain from: " .. sortedCPs[startIndex].name)
-
-        -- 3. Recursive Execution
-        local function PlayNext(index)
-            if index > #sortedCPs then
-                Notify("Finished", "All Checkpoints completed")
-                return
-            end
-
-            local cpData = HttpService:JSONDecode(readfile(sortedCPs[index].path))
-            
-            -- Only use Smart Resume for the FIRST played file in the chain
-            -- The rest should play from start to ensure continuity
-            local useSmart = (index == startIndex) 
-            
-            PlayReplayData(cpData, useSmart, function()
-                -- When finished, small delay then next
-                task.wait(0.1)
-                PlayNext(index + 1)
-            end)
+        local function Chain(idx)
+            if idx > #sorted then Notify("Done", "All Replays Finished"); return end
+            local d = HttpService:JSONDecode(readfile(sorted[idx]))
+            PlayReplayData(d, idx == bestIdx, function() task.wait(0.1); Chain(idx + 1) end)
         end
-
-        PlayNext(startIndex)
+        Chain(bestIdx)
     end
 
-    -- // WIDGET BUTTONS //
-    local RecBtn = CreateMiniBtn("●", Color3.fromRGB(200, 50, 50), UDim2.new(0, 10, 0, 10), function()
-        if Recording then 
-            -- Ask for name logic handled in StopRecording usually, but for widget simple stop:
-            StopRecording(nil) -- Auto name
-        else 
-            StartRecording() 
-        end
+    -- // WIDGET BUTTONS SETUP //
+    -- Posisi diatur manual agar rapi di dalam WidgetFrame (Size: 200, 70)
+    -- Y offset 30 agar ada di bawah label status
+    
+    local BtnRec = CreateMiniBtn("●", Color3.fromRGB(200, 50, 50), UDim2.new(0, 10, 0, 30), UDim2.new(0, 50, 0, 30), function()
+        if Recording then StopRecording() else StartRecording() end
     end)
     
-    local PlayBtn = CreateMiniBtn("▶", Color3.fromRGB(50, 200, 100), UDim2.new(0, 50, 0, 10), function()
-        if Replaying then 
-            StopReplay() 
-        else
-            -- Widget Play Button defaults to "Play All" for convenience
-            PlayAllCheckpoints()
-        end
+    local BtnPlay = CreateMiniBtn("▶", Color3.fromRGB(50, 200, 100), UDim2.new(0, 70, 0, 30), UDim2.new(0, 50, 0, 30), function()
+        if Replaying then StopReplay() else PlayAllCheckpoints() end
     end)
 
-    local HideBtn = CreateMiniBtn("_", Color3.fromRGB(50, 50, 50), UDim2.new(0, 130, 0, 10), function()
+    local BtnHide = CreateMiniBtn("_", Color3.fromRGB(60, 60, 60), UDim2.new(0, 130, 0, 30), UDim2.new(0, 60, 0, 30), function()
         WidgetGui.Enabled = false
+        -- Kita perlu update toggle di UI library jika bisa, tapi biasanya one-way cukup
+        Notify("Widget Hidden", "Enable it again in Record Tab")
     end)
 
-    -- // TAB MENU (FILE MANAGER) //
-    local Tab = UI:Tab("Record Manager")
+
+    -- // TAB UI (LIBRARY INTEGRATION) //
+    local Tab = UI:Tab("Record")
     
-    Tab:Label("Control Center [" .. MapName .. "]")
-    Tab:Toggle("Show Widget", function(v) WidgetGui.Enabled = v end).SetState(true)
+    -- Menggunakan Label sebagai Header
+    Tab:Label("Floating Widget Control")
     
-    Tab:Label("Recording Options")
-    local SaveNameInput = "CP_1"
-    Tab:Input("Checkpoint Name", function(v) SaveNameInput = v end)
+    -- [FIX] Toggle untuk memunculkan Widget (Default False)
+    Tab:Toggle("Show Floating Widget", false, function(v)
+        WidgetGui.Enabled = v
+    end)
+
+    Tab:Label("Manual Controls")
+    local SaveName = "CP_1"
+    Tab:Input("Checkpoint Name", function(v) SaveName = v end)
     
-    Tab:Button("Start Recording", Color3.fromRGB(200,50,50), StartRecording)
-    Tab:Button("Stop & Save", Theme.Button, function() StopRecording(SaveNameInput) end)
-    
-    Tab:Label("Playback Options")
-    Tab:Button("▶ PLAY ALL (Smart Chain)", Color3.fromRGB(50, 200, 100), PlayAllCheckpoints)
+    -- Menggunakan Button biasa agar lebih pasti muncul
+    Tab:Button("Start Recording", Color3.fromRGB(200, 50, 50), StartRecording)
+    Tab:Button("Stop & Save", Theme.Button, function() StopRecording(SaveName) end)
+    Tab:Button("▶ PLAY CHAIN (Smart)", Color3.fromRGB(50, 200, 100), PlayAllCheckpoints)
     Tab:Button("Stop Replay", Color3.fromRGB(200, 50, 50), StopReplay)
 
-    Tab:Label("File List (Map: " .. MapName .. ")")
-    local FileContainer = Tab:Container(250)
+    Tab:Label("Saved Files (" .. MapName .. ")")
+    
+    -- [FIX] Container dengan tinggi yang cukup
+    local FileContainer = Tab:Container(300) 
     
     local function RefreshFiles()
+        -- Hapus anak-anak lama di container
         for _, c in pairs(FileContainer:GetChildren()) do
-            if c:IsA("TextButton") then c:Destroy() end
+            if c:IsA("TextButton") or c:IsA("Frame") then c:Destroy() end
         end
         
         local files = listfiles(MapFolder)
-        table.sort(files) -- Alphabetical
+        table.sort(files)
 
         for _, file in ipairs(files) do
-            local name = string.gsub(file, MapFolder .. "/", "")
-            local btn = Instance.new("TextButton", FileContainer)
-            btn.Size = UDim2.new(1, -10, 0, 30)
-            btn.BackgroundColor3 = Theme.Button
-            btn.Text = "  " .. name
-            btn.TextColor3 = Color3.white
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 12
-            btn.TextXAlignment = Enum.TextXAlignment.Left
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+            local name = file:gsub(MapFolder .. "/", "")
             
-            -- Play Single File
-            local pBtn = Instance.new("TextButton", btn)
-            pBtn.Size = UDim2.new(0, 40, 1, -4)
-            pBtn.Position = UDim2.new(1, -45, 0, 2)
-            pBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 40)
-            pBtn.Text = "LOAD"
-            pBtn.TextColor3 = Color3.white
-            Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
+            -- Frame pembungkus per file agar rapi
+            local Row = Instance.new("Frame", FileContainer)
+            Row.Size = UDim2.new(1, -10, 0, 30)
+            Row.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            Row.BorderSizePixel = 0
+            Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 4)
+
+            -- Label Nama File
+            local Lbl = Instance.new("TextLabel", Row)
+            Lbl.Size = UDim2.new(1, -80, 1, 0)
+            Lbl.Position = UDim2.new(0, 5, 0, 0)
+            Lbl.BackgroundTransparency = 1
+            Lbl.Text = name
+            Lbl.TextColor3 = Color3.white
+            Lbl.TextXAlignment = Enum.TextXAlignment.Left
+            Lbl.Font = Enum.Font.Gotham
+
+            -- Tombol Load
+            local LoadBtn = Instance.new("TextButton", Row)
+            LoadBtn.Size = UDim2.new(0, 35, 1, -4)
+            LoadBtn.Position = UDim2.new(1, -75, 0, 2)
+            LoadBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 40)
+            LoadBtn.Text = "▶"
+            LoadBtn.TextColor3 = Color3.white
+            Instance.new("UICorner", LoadBtn).CornerRadius = UDim.new(0, 4)
             
-            pBtn.MouseButton1Click:Connect(function()
-                local content = readfile(file)
-                local data = HttpService:JSONDecode(content)
-                -- Single play with Smart Resume check
-                PlayReplayData(data, true) 
+            LoadBtn.MouseButton1Click:Connect(function()
+                local data = HttpService:JSONDecode(readfile(file))
+                PlayReplayData(data, true)
             end)
+
+            -- Tombol Hapus
+            local DelBtn = Instance.new("TextButton", Row)
+            DelBtn.Size = UDim2.new(0, 30, 1, -4)
+            DelBtn.Position = UDim2.new(1, -35, 0, 2)
+            DelBtn.BackgroundColor3 = Color3.fromRGB(100, 40, 40)
+            DelBtn.Text = "X"
+            DelBtn.TextColor3 = Color3.white
+            Instance.new("UICorner", DelBtn).CornerRadius = UDim.new(0, 4)
             
-            -- Delete File
-            local dBtn = Instance.new("TextButton", btn)
-            dBtn.Size = UDim2.new(0, 30, 1, -4)
-            dBtn.Position = UDim2.new(1, -80, 0, 2)
-            dBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
-            dBtn.Text = "X"
-            dBtn.TextColor3 = Color3.white
-            Instance.new("UICorner", dBtn).CornerRadius = UDim.new(0, 4)
-            
-            dBtn.MouseButton1Click:Connect(function()
+            DelBtn.MouseButton1Click:Connect(function()
                 delfile(file)
-                RefreshFiles()
+                RefreshFiles() -- Auto refresh setelah hapus
             end)
         end
     end
     
-    Tab:Button("Refresh List", Theme.Button, RefreshFiles)
-    RefreshFiles()
+    Tab:Button("Refresh File List", Theme.Button, RefreshFiles)
+    RefreshFiles() -- Load awal
 
-    -- Cleanup on script reload
     Config.OnReset.Event:Connect(function()
         StopRecording()
         StopReplay()
