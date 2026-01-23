@@ -1,5 +1,5 @@
--- [[ VANZYXXX RECORDER V6 - SMOOTH ANIMATION ]]
--- Fixes: Rigid Body (T-Pose), Jittering, Missing Buttons
+-- [[ VANZYXXX RECORDER V7 - REAL ANIMATIONS ]]
+-- Fixes: Rigid Body, Missing Animations (Walk/Jump/Idle), Auto-Widget Disabled
 
 return function(UI, Services, Config, Theme)
     local Players = Services.Players
@@ -20,65 +20,70 @@ return function(UI, Services, Config, Theme)
         Folder = "VanzyRecords",
         CurrentMapID = tostring(game.PlaceId),
         
-        -- Animation Stuff
-        LoadedAnimTrack = nil,
-        DefaultAnimateScript = nil
+        -- Animation Tracks
+        Tracks = {
+            Walk = nil,
+            Idle = nil,
+            Jump = nil
+        }
     }
     
     if makefolder and not isfolder(RecordSystem.Folder) then makefolder(RecordSystem.Folder) end
 
-    -- [2] DATA HELPER
-    local function SerializeCF(cf) return {cf:GetComponents()} end
-    local function DeserializeCF(t) return CFrame.new(table.unpack(t)) end
+    -- [2] ANIMATION DATABASE (R6 & R15)
+    local AnimIDs = {
+        R6 = {
+            Walk = "rbxassetid://180426354",
+            Idle = "rbxassetid://180435571",
+            Jump = "rbxassetid://125750702"
+        },
+        R15 = {
+            Walk = "rbxassetid://507777826",
+            Idle = "rbxassetid://507766388",
+            Jump = "rbxassetid://507765000"
+        }
+    }
 
     -- [3] UI TAB
     local RecordTab = UI:Tab("Record")
-    RecordTab:Label("Recorder V6 (Anim Fix)")
+    RecordTab:Label("Recorder V7 (Anim Fix)")
     local RecordListContainer = RecordTab:Container(220)
     
     local WidgetRef = {Instance=nil, StatusLbl=nil}
 
-    -- [4] ANIMATION HANDLER (FIX BERDIRI TEGAK)
-    local function ToggleAnimateScript(enable)
-        local Char = LocalPlayer.Character
-        if not Char then return end
+    -- [4] HELPER FUNCTIONS
+    local function SerializeCF(cf) return {cf:GetComponents()} end
+    local function DeserializeCF(t) return CFrame.new(table.unpack(t)) end
+
+    -- SETUP ANIMATIONS
+    local function SetupAnimations(Char)
+        local Hum = Char:FindFirstChild("Humanoid")
+        if not Hum then return end
         
-        -- Matikan/Nyalakan Script Animate Bawaan Roblox
-        local Animate = Char:FindFirstChild("Animate")
-        if Animate and Animate:IsA("LocalScript") then
-            Animate.Disabled = not enable
-            if not enable then
-                -- Stop semua track yang sedang jalan agar bersih
-                local Hum = Char:FindFirstChild("Humanoid")
-                if Hum then
-                    for _, track in pairs(Hum:GetAnimator():GetPlayingAnimationTracks()) do
-                        track:Stop()
-                    end
-                end
-            end
+        -- Deteksi R6 atau R15
+        local RigType = (Hum.RigType == Enum.HumanoidRigType.R15) and "R15" or "R6"
+        local IDs = AnimIDs[RigType]
+        
+        -- Helper Load
+        local function LoadAnim(id)
+            local A = Instance.new("Animation")
+            A.AnimationId = id
+            return Hum:LoadAnimation(A)
         end
+        
+        RecordSystem.Tracks.Walk = LoadAnim(IDs.Walk)
+        RecordSystem.Tracks.Idle = LoadAnim(IDs.Idle)
+        RecordSystem.Tracks.Jump = LoadAnim(IDs.Jump)
+        
+        -- Setting Loops
+        RecordSystem.Tracks.Walk.Looped = true
+        RecordSystem.Tracks.Idle.Looped = true
+        RecordSystem.Tracks.Jump.Looped = false
     end
 
-    local function PlayWalkAnim(Hum, speed)
-        -- Load animasi jalan standar jika belum ada
-        if not RecordSystem.LoadedAnimTrack then
-            local Anim = Instance.new("Animation")
-            Anim.AnimationId = "rbxassetid://180426354" -- ID Jalan Standar Roblox
-            RecordSystem.LoadedAnimTrack = Hum:LoadAnimation(Anim)
-            RecordSystem.LoadedAnimTrack.Looped = true
-            RecordSystem.LoadedAnimTrack.Priority = Enum.AnimationPriority.Movement
-        end
-        
-        if speed > 0.1 then
-            if not RecordSystem.LoadedAnimTrack.IsPlaying then
-                RecordSystem.LoadedAnimTrack:Play()
-            end
-            -- Sesuaikan kecepatan animasi dengan kecepatan gerak
-            RecordSystem.LoadedAnimTrack:AdjustSpeed(1) 
-        else
-            if RecordSystem.LoadedAnimTrack.IsPlaying then
-                RecordSystem.LoadedAnimTrack:Stop(0.2)
-            end
+    local function StopAllTracks()
+        for _, t in pairs(RecordSystem.Tracks) do
+            if t and t.IsPlaying then t:Stop() end
         end
     end
 
@@ -89,21 +94,21 @@ return function(UI, Services, Config, Theme)
         self.RecordedFrames = {}
         self.StartTime = os.clock()
         
-        StarterGui:SetCore("SendNotification", {Title="REC", Text="Recording...", Duration=2})
+        StarterGui:SetCore("SendNotification", {Title="REC", Text="Started...", Duration=2})
         if WidgetRef.StatusLbl then WidgetRef.StatusLbl.Text="REC..."; WidgetRef.StatusLbl.TextColor3=Color3.fromRGB(255,50,50) end
         
-        -- Record Loop (Pakai RenderStepped agar movement player asli tertangkap mulus)
         self.Connections["Rec"] = RunService.RenderStepped:Connect(function()
             local Char = LocalPlayer.Character
             if not Char then return end
             local Root = Char:FindFirstChild("HumanoidRootPart")
-            local Hum = Char:FindFirstChild("Humanoid")
             
             if Root then
+                -- Rekam CFrame DAN Kecepatan untuk replay animasi
                 table.insert(self.RecordedFrames, {
                     t = os.clock() - self.StartTime,
                     cf = SerializeCF(Root.CFrame),
-                    spd = Root.Velocity.Magnitude -- Simpan kecepatan untuk replay animasi
+                    v = Root.Velocity.Y, -- Vertical Velocity (untuk Jump)
+                    s = (Root.Velocity * Vector3.new(1,0,1)).Magnitude -- Horizontal Speed (untuk Walk)
                 })
             end
         end)
@@ -135,10 +140,15 @@ return function(UI, Services, Config, Theme)
         
         if not Root or not Hum then return end
         
-        -- [SETUP REPLAY]
-        ToggleAnimateScript(false) -- Matikan animasi default
-        Hum.PlatformStand = false -- JANGAN TRUE (Biar animasi jalan bisa play)
-        Hum.AutoRotate = false -- Matikan rotasi otomatis engine
+        -- [SETUP PHYSICS & ANIM]
+        SetupAnimations(Char)
+        
+        -- Matikan script animate bawaan agar tidak bentrok
+        local AnimateScript = Char:FindFirstChild("Animate")
+        if AnimateScript then AnimateScript.Disabled = true end
+        
+        -- Matikan Physics Roblox
+        Hum.PlatformStand = false -- Biarkan False agar animasi jalan
         Root.Anchored = true -- Kunci posisi (Anti Geter)
         
         -- Teleport Awal
@@ -147,11 +157,14 @@ return function(UI, Services, Config, Theme)
         if WidgetRef.StatusLbl then WidgetRef.StatusLbl.Text="PLAYING"; WidgetRef.StatusLbl.TextColor3=Color3.fromRGB(0,255,100) end
         
         local Idx = 1
+        
+        -- Mainkan Idle dulu
+        if RecordSystem.Tracks.Idle then RecordSystem.Tracks.Idle:Play() end
+        
         self.Connections["Play"] = RunService.RenderStepped:Connect(function()
             if not self.IsPlaying then return end
             local now = os.clock() - self.StartTime
             
-            -- Cari Frame
             while Idx < #Data.Frames - 1 do
                 if now >= Data.Frames[Idx+1].t then Idx = Idx + 1 else break end
             end
@@ -161,15 +174,35 @@ return function(UI, Services, Config, Theme)
             
             if not B then self:StopReplay() return end
             
-            -- Interpolasi Gerakan (Smooth Lerp)
+            -- [1] MOVEMENT (Lerp Smooth)
             local alpha = (now - A.t) / (B.t - A.t)
             local targetCF = DeserializeCF(A.cf):Lerp(DeserializeCF(B.cf), math.clamp(alpha,0,1))
-            
             Root.CFrame = targetCF
             
-            -- [ANIMASI MANUAL]
-            -- Jika speed di rekaman > 0.1, mainkan animasi jalan
-            PlayWalkAnim(Hum, A.spd or 0)
+            -- [2] ANIMATION LOGIC (Real-time update)
+            local Speed = A.s or 0
+            local VertVel = A.v or 0
+            
+            -- JUMPING
+            if VertVel > 2 then
+                if RecordSystem.Tracks.Jump and not RecordSystem.Tracks.Jump.IsPlaying then
+                    RecordSystem.Tracks.Jump:Play()
+                end
+            -- WALKING
+            elseif Speed > 0.5 then
+                if RecordSystem.Tracks.Walk and not RecordSystem.Tracks.Walk.IsPlaying then
+                    RecordSystem.Tracks.Walk:Play()
+                end
+                -- Adjust speed animasi sesuai kecepatan gerak
+                if RecordSystem.Tracks.Walk.IsPlaying then
+                    RecordSystem.Tracks.Walk:AdjustSpeed(Speed / 14) -- 16 is default walkspeed
+                end
+                if RecordSystem.Tracks.Idle.IsPlaying then RecordSystem.Tracks.Idle:Stop() end
+            -- IDLE
+            else
+                if RecordSystem.Tracks.Walk.IsPlaying then RecordSystem.Tracks.Walk:Stop() end
+                if not RecordSystem.Tracks.Idle.IsPlaying then RecordSystem.Tracks.Idle:Play() end
+            end
         end)
     end
 
@@ -177,20 +210,20 @@ return function(UI, Services, Config, Theme)
         self.IsPlaying = false
         if self.Connections["Play"] then self.Connections["Play"]:Disconnect() end
         
-        -- Stop Animasi Jalan
-        if RecordSystem.LoadedAnimTrack then RecordSystem.LoadedAnimTrack:Stop() end
+        -- Stop All Manual Anims
+        StopAllTracks()
         
-        -- Restore Character
         local Char = LocalPlayer.Character
         if Char then
             local Root = Char:FindFirstChild("HumanoidRootPart")
             local Hum = Char:FindFirstChild("Humanoid")
             if Root then Root.Anchored = false end 
-            if Hum then 
-                Hum.PlatformStand = false 
-                Hum.AutoRotate = true
+            
+            -- Nyalakan lagi script animate bawaan
+            local AnimateScript = Char:FindFirstChild("Animate")
+            if AnimateScript then 
+                AnimateScript.Disabled = false 
             end
-            ToggleAnimateScript(true) -- Nyalakan lagi animasi default
         end
         
         if WidgetRef.StatusLbl then WidgetRef.StatusLbl.Text="IDLE"; WidgetRef.StatusLbl.TextColor3=Theme.Text end
@@ -214,7 +247,7 @@ return function(UI, Services, Config, Theme)
         end
     end
 
-    -- [6] FIXED MINI WIDGET UI (OFFSET SIZE)
+    -- [6] FIXED MINI WIDGET UI
     local function CreateWidget()
         if WidgetRef.Instance then WidgetRef.Instance:Destroy() end
         
@@ -223,8 +256,8 @@ return function(UI, Services, Config, Theme)
         
         local Widget = Instance.new("Frame", Screen)
         Widget.Name = "RecWidget"
-        Widget.Size = UDim2.new(0, 200, 0, 80) -- Lebih lebar dikit
-        Widget.Position = UDim2.new(0.5, -100, 0.85, 0) -- Tengah Bawah
+        Widget.Size = UDim2.new(0, 200, 0, 80)
+        Widget.Position = UDim2.new(0.5, -100, 0.85, 0)
         Widget.BackgroundColor3 = Theme.Main
         Widget.ZIndex = 500
         Instance.new("UICorner", Widget).CornerRadius = UDim.new(0,8)
@@ -237,40 +270,21 @@ return function(UI, Services, Config, Theme)
         DragBtn.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then dragging=true; dragStart=i.Position; startPos=Widget.Position; i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then dragging=false end end) end end)
         UserInputService.InputChanged:Connect(function(i) if (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) and dragging then local d=i.Position-dragStart; Widget.Position=UDim2.new(startPos.X.Scale, startPos.X.Offset+d.X, startPos.Y.Scale, startPos.Y.Offset+d.Y) end end)
 
-        -- Status Label
         WidgetRef.StatusLbl = Instance.new("TextLabel", Widget)
-        WidgetRef.StatusLbl.Size = UDim2.new(1,0,0,20)
-        WidgetRef.StatusLbl.Position = UDim2.new(0,0,0,5)
-        WidgetRef.StatusLbl.BackgroundTransparency = 1
-        WidgetRef.StatusLbl.Text = "IDLE"
-        WidgetRef.StatusLbl.TextColor3 = Theme.Text
-        WidgetRef.StatusLbl.Font = Enum.Font.GothamBold
-        WidgetRef.StatusLbl.TextSize = 12
-        WidgetRef.StatusLbl.ZIndex = 501
+        WidgetRef.StatusLbl.Size = UDim2.new(1,0,0,20); WidgetRef.StatusLbl.Position = UDim2.new(0,0,0,5)
+        WidgetRef.StatusLbl.BackgroundTransparency = 1; WidgetRef.StatusLbl.Text = "STATUS: IDLE"; WidgetRef.StatusLbl.TextColor3 = Theme.Text
+        WidgetRef.StatusLbl.Font = Enum.Font.GothamBold; WidgetRef.StatusLbl.TextSize = 12; WidgetRef.StatusLbl.ZIndex = 501
 
-        -- BUTTON CONTAINER
+        -- BUTTONS
         local Grid = Instance.new("Frame", Widget)
-        Grid.Size = UDim2.new(0.9, 0, 0.5, 0)
-        Grid.Position = UDim2.new(0.05, 0, 0.4, 0)
-        Grid.BackgroundTransparency = 1
-        Grid.ZIndex = 501
-        
-        local Layout = Instance.new("UIListLayout", Grid)
-        Layout.FillDirection = Enum.FillDirection.Horizontal
-        Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-        Layout.Padding = UDim.new(0, 5)
+        Grid.Size = UDim2.new(0.9, 0, 0.5, 0); Grid.Position = UDim2.new(0.05, 0, 0.4, 0)
+        Grid.BackgroundTransparency = 1; Grid.ZIndex = 501
+        local Layout = Instance.new("UIListLayout", Grid); Layout.FillDirection = Enum.FillDirection.Horizontal; Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; Layout.Padding = UDim.new(0, 5)
 
         local function MakeBtn(txt, col, func)
-            local B = Instance.new("TextButton", Grid)
-            B.Size = UDim2.new(0, 45, 0, 35) -- OFFSET SIZE (PASTI KELIHATAN)
-            B.BackgroundColor3 = col
-            B.Text = txt
-            B.TextColor3 = Color3.new(1,1,1)
-            B.Font = Enum.Font.GothamBold
-            B.TextSize = 14
-            B.ZIndex = 502
-            Instance.new("UICorner", B).CornerRadius = UDim.new(0,6)
-            B.MouseButton1Click:Connect(func)
+            local B = Instance.new("TextButton", Grid); B.Size = UDim2.new(0, 45, 0, 35); B.BackgroundColor3 = col
+            B.Text = txt; B.TextColor3 = Color3.new(1,1,1); B.Font = Enum.Font.GothamBold; B.TextSize = 14; B.ZIndex = 502
+            Instance.new("UICorner", B).CornerRadius = UDim.new(0,6); B.MouseButton1Click:Connect(func)
         end
 
         MakeBtn("⏺", Color3.fromRGB(200,50,50), function() if RecordSystem.IsRecording then RecordSystem:StopRecording() else RecordSystem:StartRecording() end end)
@@ -286,7 +300,7 @@ return function(UI, Services, Config, Theme)
         WidgetRef.Instance = Widget
     end
 
-    -- [7] INIT
+    -- [7] INIT (NO AUTO WIDGET)
     RecordTab:Button("Show Mini Controller", Theme.Button, function()
         if not WidgetRef.Instance or not WidgetRef.Instance.Parent then CreateWidget() end
         WidgetRef.Instance.Visible = true
@@ -294,8 +308,9 @@ return function(UI, Services, Config, Theme)
     
     RecordTab:Button("Refresh List", Theme.ButtonDark, function() RecordSystem:RefreshList() end)
     
-    spawn(function() task.wait(1); RecordSystem:RefreshList(); CreateWidget() end)
+    -- Auto List Load Only
+    spawn(function() task.wait(1); RecordSystem:RefreshList() end)
     Config.OnReset:Connect(function() RecordSystem:StopRecording(); RecordSystem:StopReplay(); if WidgetRef.Instance then WidgetRef.Instance:Destroy() end end)
     
-    print("[Vanzyxxx] Recorder V6 (Smooth Anim) Loaded")
+    print("[Vanzyxxx] Recorder V7 Loaded")
 end
