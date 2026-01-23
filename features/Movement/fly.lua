@@ -1,124 +1,277 @@
---[[
-    PATH: features/Movement/fly.lua
-    FITUR: Fly V3 dengan Tilt & Mobile Widget
-]]
+-- Vanzyxxx Fly System with Gravity & Tilt
+-- Mobile Friendly Fly V3
 
-return function(UI, Services, Config)
-    local RunService = Services.RunService
-    local UserInputService = Services.UserInputService
+return function(UI, Services, Config, Theme)
     local LocalPlayer = Services.Players.LocalPlayer
     local Camera = Services.Workspace.CurrentCamera
-
-    -- 1. SETUP UI TAB
-    -- Karena pakai sistem 'Smart Check', ini akan masuk ke Tab "Movement" yang sama dengan speed.lua nanti
-    local Tab = UI:Tab("Movement")
-
-    -- 2. LOCAL STATE
-    local State = {
-        Flying = false,
-        Speed = 50,
-        Connections = {}
-    }
-
-    -- 3. WIDGET SETUP (Self-Contained UI)
-    -- Kita buat widget di sini agar module ini mandiri
-    local FlyWidget = Instance.new("Frame")
-    FlyWidget.Size = UDim2.new(0,140,0,50)
-    FlyWidget.Position = UDim2.new(0.5,-70,0.1,0)
-    FlyWidget.BackgroundColor3 = Color3.fromRGB(30, 15, 45)
-    FlyWidget.Visible = false
-    FlyWidget.Parent = UI.ScreenGui -- Mengakses ScreenGui dari Library
+    local RunService = Services.RunService
     
-    -- (Isi Widget: Tombol Speed +/- dan Indikator)
-    local SpeedLbl = Instance.new("TextLabel", FlyWidget)
-    SpeedLbl.Size = UDim2.new(1,0,0.4,0); SpeedLbl.BackgroundTransparency=1; SpeedLbl.Text="SPEED: 50"; SpeedLbl.TextColor3=Color3.new(1,1,1)
+    -- Create Tab
+    local MovementTab = UI:Tab("Movement")
+    MovementTab:Label("Fly V3 (Fixed Gravity & Tilt)")
     
-    local BtnUp = Instance.new("TextButton", FlyWidget); BtnUp.Size=UDim2.new(0.25,0,0.5,0); BtnUp.Position=UDim2.new(0.7,0,0.45,0); BtnUp.Text="+"
-    local BtnDown = Instance.new("TextButton", FlyWidget); BtnDown.Size=UDim2.new(0.25,0,0.5,0); BtnDown.Position=UDim2.new(0.05,0,0.45,0); BtnDown.Text="-"
+    -- UI Widget Frame
+    local FlyWidgetFrame = nil
+    local FlyToggleBtn = nil
+    local FlySpeedLabel = nil
     
-    BtnUp.MouseButton1Click:Connect(function() State.Speed = State.Speed + 10; SpeedLbl.Text="SPEED: "..State.Speed end)
-    BtnDown.MouseButton1Click:Connect(function() State.Speed = math.max(10, State.Speed - 10); SpeedLbl.Text="SPEED: "..State.Speed end)
-
-    -- 4. LOGIC FLY V3 (The Core Logic)
-    local function StartFly()
-        FlyWidget.Visible = true
-        State.Flying = true
+    -- Create Fly Widget
+    local function CreateFlyWidget()
+        local ScreenGui = Services.CoreGui:FindFirstChild("Vanzyxxx")
+        if not ScreenGui then return end
         
-        local char = LocalPlayer.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChild("Humanoid")
+        local FW = Instance.new("Frame", ScreenGui)
+        FW.Size = UDim2.new(0, 140, 0, 50)
+        FW.Position = UDim2.new(0.5, -70, 0.1, 0)
+        FW.BackgroundColor3 = Theme.Sidebar
+        FW.Visible = false
         
-        if hum then hum.PlatformStand = true end
-
-        -- Loop Fisika
-        local HB = RunService.Heartbeat:Connect(function()
-            if not State.Flying or not root then return end
+        local FWCorner = Instance.new("UICorner", FW)
+        FWCorner.CornerRadius = UDim.new(0, 8)
+        
+        local FWStroke = Instance.new("UIStroke", FW)
+        FWStroke.Color = Theme.Accent
+        
+        -- Drag function
+        local function Drag(frame, handle)
+            handle = handle or frame
+            local dragging, dragStart, startPos
             
-            -- Velocity
-            local bv = root:FindFirstChild("FlyVelocity") or Instance.new("BodyVelocity", root)
-            bv.Name = "FlyVelocity"; bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            handle.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    dragging = true
+                    dragStart = input.Position
+                    startPos = frame.Position
+                    
+                    input.Changed:Connect(function()
+                        if input.UserInputState == Enum.UserInputState.End then
+                            dragging = false
+                        end
+                    end)
+                end
+            end)
             
-            -- Gyro (Tilt)
-            local bg = root:FindFirstChild("FlyGyro") or Instance.new("BodyGyro", root)
-            bg.Name = "FlyGyro"; bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9); bg.P = 10000; bg.D = 100
-
-            -- Kalkulasi Arah
-            local moveDir = hum.MoveDirection
-            local camCFrame = Camera.CFrame
-            
-            if moveDir.Magnitude > 0 then
-                bv.Velocity = camCFrame.LookVector * State.Speed
-            else
-                bv.Velocity = Vector3.zero
-            end
-
-            -- Kalkulasi Tilt
-            local forwardTilt, sideTilt = 0, 0
-            local lv, rv = camCFrame.LookVector, camCFrame.RightVector
-            local dotFwd, dotRight = moveDir:Dot(lv), moveDir:Dot(rv)
-
-            if moveDir.Magnitude > 0 then
-                if dotFwd > 0.5 then forwardTilt = -45 end
-                if dotFwd < -0.5 then forwardTilt = 25 end
-                if dotRight > 0.5 then sideTilt = -45 end
-                if dotRight < -0.5 then sideTilt = 45 end
-            end
-
-            bg.CFrame = camCFrame * CFrame.Angles(math.rad(forwardTilt), 0, math.rad(sideTilt))
+            Services.UserInputService.InputChanged:Connect(function(input)
+                if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+                    local delta = input.Position - dragStart
+                    frame.Position = UDim2.new(
+                        startPos.X.Scale,
+                        startPos.X.Offset + delta.X,
+                        startPos.Y.Scale,
+                        startPos.Y.Offset + delta.Y
+                    )
+                end
+            end)
+        end
+        
+        Drag(FW)
+        FlyWidgetFrame = FW
+        
+        -- Speed Label
+        local SL = Instance.new("TextLabel", FW)
+        SL.Size = UDim2.new(1, 0, 0.4, 0)
+        SL.BackgroundTransparency = 1
+        SL.Text = "SPEED: " .. Config.FlySpeed
+        SL.TextColor3 = Theme.Text
+        SL.Font = Enum.Font.GothamBold
+        SL.TextSize = 11
+        FlySpeedLabel = SL
+        
+        -- Minus Button
+        local FBMinus = Instance.new("TextButton", FW)
+        FBMinus.Size = UDim2.new(0.25, 0, 0.5, 0)
+        FBMinus.Position = UDim2.new(0.05, 0, 0.45, 0)
+        FBMinus.BackgroundColor3 = Theme.Button
+        FBMinus.Text = "-"
+        FBMinus.TextColor3 = Theme.Text
+        
+        local MinusCorner = Instance.new("UICorner", FBMinus)
+        
+        -- Toggle Button
+        local FBToggle = Instance.new("TextButton", FW)
+        FBToggle.Size = UDim2.new(0.35, 0, 0.5, 0)
+        FBToggle.Position = UDim2.new(0.325, 0, 0.45, 0)
+        FBToggle.BackgroundColor3 = Theme.ButtonRed
+        FBToggle.Text = "OFF"
+        FBToggle.TextColor3 = Theme.Text
+        
+        local ToggleCorner = Instance.new("UICorner", FBToggle)
+        FlyToggleBtn = FBToggle
+        
+        -- Plus Button
+        local FBPlus = Instance.new("TextButton", FW)
+        FBPlus.Size = UDim2.new(0.25, 0, 0.5, 0)
+        FBPlus.Position = UDim2.new(0.7, 0, 0.45, 0)
+        FBPlus.BackgroundColor3 = Theme.Button
+        FBPlus.Text = "+"
+        FBPlus.TextColor3 = Theme.Text
+        
+        local PlusCorner = Instance.new("UICorner", FBPlus)
+        
+        -- Button Events
+        FBMinus.MouseButton1Click:Connect(function()
+            Config.FlySpeed = math.max(10, Config.FlySpeed - 10)
+            FlySpeedLabel.Text = "SPEED: " .. Config.FlySpeed
         end)
         
-        table.insert(State.Connections, HB)
+        FBPlus.MouseButton1Click:Connect(function()
+            Config.FlySpeed = Config.FlySpeed + 10
+            FlySpeedLabel.Text = "SPEED: " .. Config.FlySpeed
+        end)
+        
+        FBToggle.MouseButton1Click:Connect(function()
+            Config.Flying = not Config.Flying
+            FBToggle.Text = Config.Flying and "ON" or "OFF"
+            FBToggle.BackgroundColor3 = Config.Flying and Theme.Accent or Theme.ButtonRed
+            
+            if not Config.Flying and LocalPlayer.Character then
+                -- Reset character when off
+                local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+                if hum then
+                    hum.PlatformStand = false
+                end
+                
+                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.AssemblyLinearVelocity = Vector3.zero
+                    if root:FindFirstChild("FlyVelocity") then root.FlyVelocity:Destroy() end
+                    if root:FindFirstChild("FlyGyro") then root.FlyGyro:Destroy() end
+                end
+            end
+        end)
     end
+    
+    -- Main Fly Logic with Gravity & Tilt
+    local FlyConnection = nil
+    
+    local function StartFlyLogic()
+        if FlyConnection then
+            FlyConnection:Disconnect()
+            FlyConnection = nil
+        end
+        
+        FlyConnection = RunService.Heartbeat:Connect(function()
+            if not Config.Flying then return end
+            
+            local char = LocalPlayer.Character
+            if not char then return end
+            
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChild("Humanoid")
+            if not root or not hum then return end
 
-    local function StopFly()
-        State.Flying = false
-        FlyWidget.Visible = false
+            -- Enable PlatformStand to disable default physics/animations
+            hum.PlatformStand = true
+
+            -- Velocity Handler
+            local bv = root:FindFirstChild("FlyVelocity")
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "FlyVelocity"
+                bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bv.Parent = root
+            end
+
+            -- Gyro Handler (For Rotation/Tilt)
+            local bg = root:FindFirstChild("FlyGyro")
+            if not bg then
+                bg = Instance.new("BodyGyro")
+                bg.Name = "FlyGyro"
+                bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+                bg.P = 10000 -- Responsiveness
+                bg.D = 100 -- Damping
+                bg.Parent = root
+            end
+
+            -- Calculate Movement Direction
+            local moveDir = hum.MoveDirection
+            local camCFrame = Camera.CFrame
+            local targetVelocity = Vector3.zero
+
+            if moveDir.Magnitude > 0 then
+                targetVelocity = camCFrame.LookVector * Config.FlySpeed
+            else
+                targetVelocity = Vector3.zero
+            end
+            
+            bv.Velocity = targetVelocity
+
+            -- Calculate Tilt Animation
+            local forwardTilt = 0
+            local sideTilt = 0
+            
+            -- Getting Controls relative to camera
+            local lv = camCFrame.LookVector
+            local rv = camCFrame.RightVector
+            local dotFwd = moveDir:Dot(lv)
+            local dotRight = moveDir:Dot(rv)
+
+            if moveDir.Magnitude > 0 then
+                -- Tilt forward when moving forward
+                if dotFwd > 0.5 then forwardTilt = -45 end
+                -- Tilt backward when moving backward
+                if dotFwd < -0.5 then forwardTilt = 25 end
+                -- Tilt sideways
+                if dotRight > 0.5 then sideTilt = -45 end -- Right
+                if dotRight < -0.5 then sideTilt = 45 end -- Left
+            end
+
+            -- Smoothly interpolate current CFrame to target tilt
+            local targetCFrame = camCFrame * CFrame.Angles(math.rad(forwardTilt), 0, math.rad(sideTilt))
+            bg.CFrame = targetCFrame
+        end)
+    end
+    
+    -- UI Toggle
+    MovementTab:Toggle("Fly (Menu)", function(state)
+        Config.Flying = state
         
-        -- Cleanup Physics
-        for _, conn in pairs(State.Connections) do conn:Disconnect() end
-        State.Connections = {}
-        
-        if LocalPlayer.Character then
-            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if hum then hum.PlatformStand = false end
-            if root then
-                if root:FindFirstChild("FlyVelocity") then root.FlyVelocity:Destroy() end
-                if root:FindFirstChild("FlyGyro") then root.FlyGyro:Destroy() end
-                root.AssemblyLinearVelocity = Vector3.zero
+        if state then
+            if not FlyWidgetFrame then
+                CreateFlyWidget()
+            end
+            FlyWidgetFrame.Visible = true
+            StartFlyLogic()
+        else
+            if FlyWidgetFrame then
+                FlyWidgetFrame.Visible = false
+            end
+            if FlyConnection then
+                FlyConnection:Disconnect()
+                FlyConnection = nil
             end
         end
-    end
-
-    -- 5. MENU CONTROLS
-    Tab:Toggle("Fly V3 (Menu)", function(enabled)
-        if enabled then StartFly() else StopFly() end
     end)
-
-    -- 6. CLEANUP HANDLER (Saat script utama di-close)
-    table.insert(Config.CleanupEvents, function()
-        StopFly()
-        FlyWidget:Destroy()
+    
+    -- Additional fly controls
+    MovementTab:Slider("Fly Speed", 10, 200, function(value)
+        Config.FlySpeed = value
+        if FlySpeedLabel then
+            FlySpeedLabel.Text = "SPEED: " .. value
+        end
     end)
+    
+    -- Cleanup on reset
+    Config.OnReset:Connect(function()
+        Config.Flying = false
+        if FlyConnection then
+            FlyConnection:Disconnect()
+            FlyConnection = nil
+        end
+        if FlyWidgetFrame then
+            FlyWidgetFrame:Destroy()
+            FlyWidgetFrame = nil
+        end
+    end)
+    
+    -- Initialize widget on load
+    spawn(function()
+        task.wait(1)
+        CreateFlyWidget()
+    end)
+    
+    Services.StarterGui:SetCore("SendNotification", {
+        Title = "Fly System",
+        Text = "Fly V3 Loaded with Gravity & Tilt!"
+    })
 end
