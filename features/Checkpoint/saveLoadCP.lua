@@ -14,7 +14,7 @@ return function(UI, Services, Config, Theme)
     -- Variables
     local CP_Data = {}
     local AutoCPFile = "VanzyCP.json"
-    local GithubCP = "https://raw.githubusercontent.com/alfreadrorw1/vanzyx/main/JsonLoad/VanzyCP.json"
+    local GithubCP = "https://raw.githubusercontent.com/alfreadrorw1/vanzyx/main/VanzyCP.json"
     
     -- UI References
     local MiniWidget = nil
