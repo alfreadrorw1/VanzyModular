@@ -672,7 +672,7 @@ local FeatureList = {
     {category = "Sky", name = "sky", url = GitHubBaseURL .. "features/Sky/sky.lua"},
     -- Checkpoint Features
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
-    {category = "Crash", name = "crashModule", url = GitHubBaseURL .. "features/Crash/crashModule.lua"},
+    {category = "Crash", name = "serverCrash", url = GitHubBaseURL .. "features/Crash/serverCrash.lua"},
     -- Settings Features
     {category = "Settings", name = "theme", url = GitHubBaseURL .. "features/Settings/theme.lua"},
     {category = "Settings", name = "fpsBoost", url = GitHubBaseURL .. "features/Settings/fpsBoost.lua"}
