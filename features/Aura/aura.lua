@@ -1,5 +1,5 @@
--- Vanzyxxx Aura System (FIXED PHYSICS)
--- Custom Character Auras with Anti-Stuck Logic
+-- Vanzyxxx Aura System (GITHUB ONLY - FIXED)
+-- Fix: Load Logic, Physics, & Removing Presets
 
 return function(UI, Services, Config, Theme)
     local LocalPlayer = Services.Players.LocalPlayer
@@ -9,213 +9,196 @@ return function(UI, Services, Config, Theme)
     
     -- Create Tab
     local AuraTab = UI:Tab("Aura")
+    AuraTab:Label("GitHub Aura Loader")
     
-    AuraTab:Label("Character Auras")
-    
-    -- Aura Variables
+    -- Variables
     local CurrentAura = nil
     local AuraContainer = nil
-    local AuraRotationSpeed = 1
-    local AuraScale = 1
-    local AuraTransparency = 0.5
-    
-    -- GitHub Aura List URL
     local GithubAura = "https://raw.githubusercontent.com/alfreadrorw1/vanzyx/main/aura.json"
-    local AuraList = {}
+    local AuraList = {} -- Data akan masuk ke sini dari GitHub
     
-    -- Preset Auras
-    local PresetAuras = {
-        { Name = "Fire Aura", ID = "9206613942" },
-        { Name = "Ice Aura", ID = "9206615323" },
-        { Name = "Lightning", ID = "9206616377" },
-        { Name = "Darkness", ID = "9206617412" },
-        { Name = "Holy Light", ID = "9206618545" },
-        { Name = "Rainbow", ID = "9206619521" },
-        { Name = "Dragon", ID = "9206620543" },
-        { Name = "Super Saiyan", ID = "2941153370" }
-    }
-    
-    -- Function to Clean Aura (PHYSICS FIX)
+    -- [FIX] Fungsi untuk membersihkan Aura agar tidak bikin macet/berat
     local function CleanAuraPhysics(model)
         for _, desc in pairs(model:GetDescendants()) do
-            -- Hapus Humanoid (Penyebab utama gak bisa gerak)
-            if desc:IsA("Humanoid") then
-                desc:Destroy()
-            -- Hapus BodyMover (Penyebab karakter melayang aneh)
-            elseif desc:IsA("BodyPosition") or desc:IsA("BodyVelocity") or desc:IsA("BodyGyro") then
-                desc:Destroy()
-            -- Atur Part agar tidak tabrakan & tidak berat
-            elseif desc:IsA("BasePart") or desc:IsA("MeshPart") then
+            if desc:IsA("BasePart") or desc:IsA("MeshPart") then
+                -- Buat part dummy jadi transparan & tidak bisa disentuh
+                desc.Transparency = 1 
                 desc.CanCollide = false
                 desc.CanTouch = false
                 desc.CanQuery = false
                 desc.Anchored = false
                 desc.Massless = true
                 desc.CastShadow = false
-                desc.Transparency = AuraTransparency
-            elseif desc:IsA("Decal") then
-                desc.Transparency = AuraTransparency
+            elseif desc:IsA("Humanoid") then
+                -- Hapus humanoid bawaan model agar tidak bentrok
+                desc:Destroy()
+            elseif desc:IsA("BodyMover") then
+                -- Hapus script penggerak lama
+                desc:Destroy()
             end
         end
     end
 
-    -- Function to apply aura
+    -- [FIX] Fungsi Apply Aura yang Lebih Kuat
     local function ApplyAura(auraId, auraName)
         pcall(function()
-            -- 1. Remove Existing
+            -- 1. Hapus Aura Lama
             if CurrentAura then CurrentAura:Destroy(); CurrentAura = nil end
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("VanzyAura") then
                 LocalPlayer.Character.VanzyAura:Destroy()
             end
             
-            -- 2. Handle Reset
+            -- 2. Cek Reset
             if auraId == "reset" then
                 StarterGui:SetCore("SendNotification", {Title = "Aura", Text = "Removed!", Duration = 2})
                 return
             end
             
-            -- 3. Load Aura
-            local success, result = pcall(function() return game:GetObjects("rbxassetid://" .. auraId) end)
+            -- 3. Load Aura dari ID
+            StarterGui:SetCore("SendNotification", {Title = "Loading...", Text = "Fetching ID: " .. auraId})
             
-            if success and result[1] then
+            local success, result = pcall(function() 
+                return game:GetObjects("rbxassetid://" .. auraId) 
+            end)
+            
+            if success and result and result[1] then
                 local aura = result[1]
                 aura.Name = "VanzyAura"
                 
-                -- 4. Apply Physics Fix (CRITICAL)
+                -- 4. Bersihkan Fisik Aura (PENTING)
                 CleanAuraPhysics(aura)
                 
-                -- 5. Attach to Character
+                -- 5. Tempel ke Karakter
                 if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    aura.Parent = LocalPlayer.Character
-                    
                     local root = LocalPlayer.Character.HumanoidRootPart
+                    
+                    -- Cari part utama dari Aura untuk ditempel
                     local primary = aura:IsA("Model") and aura.PrimaryPart or aura:FindFirstChildWhichIsA("BasePart")
                     
+                    -- Jika tidak ada primary part, cari part apa saja
+                    if not primary and aura:IsA("Model") then
+                        primary = aura:FindFirstChildWhichIsA("BasePart", true)
+                    end
+                    
                     if primary then
-                        -- Pindahkan ke posisi pemain dulu
+                        aura.Parent = LocalPlayer.Character
+                        
+                        -- Pindahkan posisi aura ke pemain
                         primary.CFrame = root.CFrame
                         
-                        -- Weld (Rekatkan)
+                        -- Kunci (Weld) Aura ke Pemain
                         local weld = Instance.new("WeldConstraint")
                         weld.Part0 = root
                         weld.Part1 = primary
                         weld.Parent = primary
                         
                         CurrentAura = aura
-                        StarterGui:SetCore("SendNotification", {Title = "Aura", Text = "Applied: " .. auraName})
+                        StarterGui:SetCore("SendNotification", {Title = "Success", Text = "Applied: " .. auraName})
                     else
-                        -- Fallback jika tidak ada primary part
+                        -- Jika model aura kosong/rusak
                         aura:Destroy()
-                        StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Bad Aura Model (No Parts)"})
+                        StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Aura Model Empty/Broken"})
                     end
+                else
+                    StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Character not found!"})
                 end
             else
-                StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Invalid ID / Asset"})
+                StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Invalid ID / Asset Locked"})
             end
         end)
     end
     
-    -- Rotation Loop
-    local auraRotationConnection = nil
-    local function StartAuraRotation()
-        if auraRotationConnection then auraRotationConnection:Disconnect() end
-        auraRotationConnection = RunService.Heartbeat:Connect(function()
-            if CurrentAura and Config.AuraRotate and LocalPlayer.Character then
-                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    -- Putar PrimaryPart atau Model relatif terhadap root
-                    -- Catatan: Rotasi aura kompleks butuh CFrame math yang hati-hati agar tidak merusak Weld
-                    -- Cara aman: Putar texture/particle atau gunakan Motor6D (terlalu kompleks untuk script ini)
-                    -- Kita gunakan metode simple: Putar attachment jika ada
-                end
-            end
-        end)
-    end
-
-    -- Container Updater
-    local function UpdateAuraContainer()
+    -- [FIX] Update Container List (Hanya GitHub)
+    local function UpdateAuraList()
         if not AuraContainer then return end
-        for _, child in ipairs(AuraContainer:GetChildren()) do if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end end
         
-        -- Preset List
-        for _, aura in ipairs(PresetAuras) do
-            local btn = Instance.new("TextButton", AuraContainer)
-            btn.Size = UDim2.new(1, 0, 0, 25)
-            btn.BackgroundColor3 = Theme.ButtonDark
-            btn.Text = aura.Name
-            btn.TextColor3 = Theme.Text
-            btn.Font = Enum.Font.Gotham
-            btn.TextSize = 11
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-            btn.MouseButton1Click:Connect(function() ApplyAura(aura.ID, aura.Name) end)
+        -- Bersihkan list lama
+        for _, child in ipairs(AuraContainer:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") then 
+                child:Destroy() 
+            end
         end
         
-        -- Separator
-        local sep = Instance.new("TextLabel", AuraContainer)
-        sep.Size = UDim2.new(1,0,0,20); sep.BackgroundTransparency=1; sep.Text="--- GitHub List ---"; sep.TextColor3=Theme.Accent; sep.Font=Enum.Font.GothamBold; sep.TextSize=10
-        
-        -- GitHub List
+        -- Cek jika list kosong
+        if #AuraList == 0 then
+            local lbl = Instance.new("TextLabel", AuraContainer)
+            lbl.Size = UDim2.new(1,0,0,30)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = "No Auras Found / Load GitHub First"
+            lbl.TextColor3 = Color3.fromRGB(150,150,150)
+            lbl.Font = Enum.Font.Gotham
+            lbl.TextSize = 12
+            return
+        end
+
+        -- Generate Button dari List GitHub
         for _, aura in ipairs(AuraList) do
             local btn = Instance.new("TextButton", AuraContainer)
-            btn.Size = UDim2.new(1, 0, 0, 25)
-            btn.BackgroundColor3 = Theme.Button
-            btn.Text = aura.Name
+            btn.Size = UDim2.new(1, 0, 0, 30)
+            btn.BackgroundColor3 = Theme.ButtonDark
+            btn.Text = "✨ " .. (aura.Name or "Unknown")
             btn.TextColor3 = Theme.Text
             btn.Font = Enum.Font.Gotham
             btn.TextSize = 11
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-            btn.MouseButton1Click:Connect(function() ApplyAura(aura.ID, aura.Name) end)
+            
+            local corner = Instance.new("UICorner", btn)
+            corner.CornerRadius = UDim.new(0, 6)
+            
+            btn.MouseButton1Click:Connect(function() 
+                ApplyAura(aura.ID, aura.Name) 
+            end)
         end
+        
+        -- Update ukuran scroll
+        AuraContainer.CanvasSize = UDim2.new(0, 0, 0, AuraContainer.UIListLayout.AbsoluteContentSize.Y + 20)
     end
     
-    local function LoadAuraList()
+    -- Load Data dari GitHub
+    local function LoadGitHubData()
+        StarterGui:SetCore("SendNotification", {Title = "GitHub", Text = "Downloading List..."})
         pcall(function()
             local json = game:HttpGet(GithubAura)
             if json then
-                AuraList = HttpService:JSONDecode(json)
-                UpdateAuraContainer()
-                StarterGui:SetCore("SendNotification", {Title="GitHub", Text="Loaded "..#AuraList.." Auras"})
+                local data = HttpService:JSONDecode(json)
+                if data then
+                    AuraList = data
+                    UpdateAuraList()
+                    StarterGui:SetCore("SendNotification", {Title = "Success", Text = "Loaded " .. #AuraList .. " Auras"})
+                end
+            else
+                StarterGui:SetCore("SendNotification", {Title = "Error", Text = "Failed to fetch GitHub"})
             end
         end)
     end
     
-    -- UI Construction
-    AuraContainer = AuraTab:Container(200)
+    -- >>> UI SETUP <<<
     
-    AuraTab:Button("Load GitHub List", Theme.Button, LoadAuraList)
-    AuraTab:Button("RESET AURA (Fix)", Theme.ButtonRed, function() ApplyAura("reset", "Reset") end)
+    -- Tombol Load GitHub
+    AuraTab:Button("📥 LOAD LIST FROM GITHUB", Theme.Button, LoadGitHubData)
     
-    AuraTab:Label("Custom ID")
-    AuraTab:Input("Enter ID...", function(t) if tonumber(t) then ApplyAura(t, "Custom") end end)
+    -- Container List
+    AuraContainer = AuraTab:Container(250) -- Tinggi container
     
-    AuraTab:Label("Settings")
-    AuraTab:Slider("Transparency", 0, 1, function(v)
-        AuraTransparency = v
-        if CurrentAura then for _,p in pairs(CurrentAura:GetDescendants()) do if p:IsA("BasePart") or p:IsA("Decal") then p.Transparency = v end end end
-    end)
+    -- Tombol Reset & Custom ID
+    AuraTab:Label("Controls")
+    AuraTab:Button("❌ RESET AURA", Theme.ButtonRed, function() ApplyAura("reset", "Reset") end)
     
-    AuraTab:Toggle("Particles", function(s)
-        Config.AuraParticles = s
-        if CurrentAura then
-            if s then
-                for _,p in pairs(CurrentAura:GetDescendants()) do
-                    if p:IsA("BasePart") and not p:FindFirstChild("VPart") then
-                        local pe = Instance.new("ParticleEmitter", p); pe.Name="VPart"; pe.Texture="rbxassetid://243098098"; pe.Color=ColorSequence.new(Theme.Accent); pe.Lifetime=NumberRange.new(0.5); pe.Rate=20
-                    end
-                end
-            else
-                for _,p in pairs(CurrentAura:GetDescendants()) do if p:IsA("ParticleEmitter") and p.Name=="VPart" then p:Destroy() end end
-            end
+    AuraTab:Input("Custom ID (Number Only)", function(text)
+        if tonumber(text) then
+            ApplyAura(text, "Custom ID")
         end
     end)
     
-    -- Init
-    spawn(function() task.wait(1); UpdateAuraContainer() end)
+    -- Init (Auto Load saat script jalan - Opsional)
+    spawn(function()
+        task.wait(1)
+        LoadGitHubData() -- Otomatis load pas script nyala
+    end)
     
-    -- Cleanup
+    -- Cleanup saat reset
     Config.OnReset:Connect(function()
         if CurrentAura then CurrentAura:Destroy() end
     end)
     
-    print("[Vanzyxxx] Fixed Aura System Loaded")
+    print("[Vanzyxxx] Aura Module (GitHub Only) Loaded")
 end

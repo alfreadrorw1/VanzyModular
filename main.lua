@@ -660,7 +660,7 @@ local FeatureList = {
     
     -- Aura Features
     {category = "Aura", name = "aura", url = GitHubBaseURL .. "features/Aura/aura.lua"},
-    
+    {category = "Sky", name = "sky", url = GitHubBaseURL .. "features/Sky/sky.lua"},
     -- Checkpoint Features
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
     {category = "Checkpoint", name = "autoPlay", url = GitHubBaseURL .. "features/Checkpoint/autoPlay.lua"},
