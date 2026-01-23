@@ -14,11 +14,19 @@ local Services = {
     StarterGui = game:GetService("StarterGui"),
     TeleportService = game:GetService("TeleportService"),
     MarketplaceService = game:GetService("MarketplaceService")
+    
 }
 
 -- GLOBALS
 local LocalPlayer = Services.Players.LocalPlayer
 local Camera = Services.Workspace.CurrentCamera
+local Players = Services.Players
+local RunService = Services.RunService
+local HttpService = Services.HttpService
+local StarterGui = Services.StarterGui
+local UserInputService = Services.UserInputService
+    
+    local LocalPlayer = Players.LocalPlayer
 
 -- CONFIG GLOBAL
 local Config = {
