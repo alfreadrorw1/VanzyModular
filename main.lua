@@ -1,5 +1,11 @@
 -- Vanzyxxx Modular Executor - Mobile Friendly
--- Core Loader by Alfreadrorw1 (Updated: Loading Screen)
+-- Core Loader by Alfreadrorw1 (FINAL FIX: No Double Tabs & Loading Screen)
+
+-- [1] ANTI-DUPLICATE SYSTEM (Mencegah Tab Double saat Execute Ulang)
+local CoreGui = game:GetService("CoreGui")
+if CoreGui:FindFirstChild("Vanzyxxx") then
+    CoreGui.Vanzyxxx:Destroy()
+end
 
 -- SERVICES
 local Services = {
@@ -15,10 +21,6 @@ local Services = {
     TeleportService = game:GetService("TeleportService"),
     MarketplaceService = game:GetService("MarketplaceService")
 }
-
--- GLOBALS
-local LocalPlayer = Services.Players.LocalPlayer
-local Camera = Services.Workspace.CurrentCamera
 
 -- CONFIG GLOBAL
 local Config = {
@@ -50,10 +52,10 @@ local Theme = {
     Button = Color3.fromRGB(45, 25, 60),
     ButtonDark = Color3.fromRGB(35, 20, 50),
     ButtonRed = Color3.fromRGB(100, 30, 30),
-    Confirm = Color3.fromRGB(40, 100, 40)
+    Confirm = Color3.fromRGB(40, 100, 40),
+    PlayBtn = Color3.fromRGB(255, 170, 0)
 }
 
--- THEME LOOP
 spawn(function()
     while true do
         if Config.RainbowTheme then
@@ -75,34 +77,31 @@ function UILibrary:Create()
     ScreenGui.Name = "Vanzyxxx"
     ScreenGui.ResetOnSpawn = false
     
-    local function GetGuiParent()
-        if gethui then return gethui() end
-        if syn and syn.protect_gui then local sg = Instance.new("ScreenGui"); syn.protect_gui(sg); sg.Parent = Services.CoreGui; return sg end
-        return Services.CoreGui
-    end
-    ScreenGui.Parent = GetGuiParent()
+    -- Safe Parent
+    if gethui then ScreenGui.Parent = gethui()
+    elseif syn and syn.protect_gui then syn.protect_gui(ScreenGui); ScreenGui.Parent = Services.CoreGui
+    else ScreenGui.Parent = Services.CoreGui end
     
-    -- OPEN BUTTON
-    local OpenBtn = Instance.new("ImageButton", ScreenGui); OpenBtn.Name="Open"; OpenBtn.Size=UDim2.new(0,50,0,50); OpenBtn.Position=UDim2.new(0.05,0,0.2,0); OpenBtn.BackgroundColor3=Theme.Main; OpenBtn.Image=FinalLogo; Instance.new("UICorner",OpenBtn).CornerRadius=UDim.new(1,0); local OS=Instance.new("UIStroke",OpenBtn); OS.Color=Theme.Accent; OS.Thickness=2; UIRefs.OpenBtnStroke=OS
+    -- MAIN UI CONSTRUCTION (Hidden initially)
+    local OpenBtn = Instance.new("ImageButton", ScreenGui); OpenBtn.Name="Open"; OpenBtn.Size=UDim2.new(0,50,0,50); OpenBtn.Position=UDim2.new(0.05,0,0.2,0); OpenBtn.BackgroundColor3=Theme.Main; OpenBtn.Image=FinalLogo; OpenBtn.Visible=false -- Sembunyikan sampai loading selesai
+    Instance.new("UICorner",OpenBtn).CornerRadius=UDim.new(1,0); local OS=Instance.new("UIStroke",OpenBtn); OS.Color=Theme.Accent; OS.Thickness=2; UIRefs.OpenBtnStroke=OS
 
-    -- MAIN FRAME
-    local MainFrame = Instance.new("Frame", ScreenGui); MainFrame.Name="Main"; MainFrame.Size=UDim2.new(0,400,0,220); MainFrame.Position=UDim2.new(0.5,-200,0.5,-110); MainFrame.BackgroundColor3=Theme.Main; MainFrame.ClipsDescendants=true; MainFrame.Visible=false; Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,12); local MS=Instance.new("UIStroke",MainFrame); MS.Color=Theme.Accent; MS.Thickness=2; UIRefs.MainFrame=MainFrame; UIRefs.MainStroke=MS; local UIScale=Instance.new("UIScale",MainFrame); UIScale.Scale=0
+    local MainFrame = Instance.new("Frame", ScreenGui); MainFrame.Name="Main"; MainFrame.Size=UDim2.new(0,400,0,220); MainFrame.Position=UDim2.new(0.5,-200,0.5,-110); MainFrame.BackgroundColor3=Theme.Main; MainFrame.ClipsDescendants=true; MainFrame.Visible=false; 
+    Instance.new("UICorner",MainFrame).CornerRadius=UDim.new(0,12); local MS=Instance.new("UIStroke",MainFrame); MS.Color=Theme.Accent; MS.Thickness=2; UIRefs.MainFrame=MainFrame; UIRefs.MainStroke=MS; local UIScale=Instance.new("UIScale",MainFrame); UIScale.Scale=0
 
-    -- TITLE
+    -- HEADER
     local Title = Instance.new("TextLabel", MainFrame); Title.Size=UDim2.new(1,-100,0,30); Title.Position=UDim2.new(0,10,0,0); Title.BackgroundTransparency=1; Title.Text=Config.MenuTitle; Title.Font=Enum.Font.GothamBlack; Title.TextSize=16; Title.TextColor3=Theme.Accent; Title.TextXAlignment=Enum.TextXAlignment.Left; UIRefs.Title=Title
-
-    -- CONTROLS
     local BtnContainer = Instance.new("Frame", MainFrame); BtnContainer.Size=UDim2.new(0,120,0,30); BtnContainer.Position=UDim2.new(1,-125,0,0); BtnContainer.BackgroundTransparency=1
     local CloseX = Instance.new("TextButton", BtnContainer); CloseX.Size=UDim2.new(0,30,0,30); CloseX.Position=UDim2.new(1,-30,0,0); CloseX.BackgroundTransparency=1; CloseX.Text="X"; CloseX.TextColor3=Color3.fromRGB(255,50,50); CloseX.Font=Enum.Font.GothamBlack; CloseX.TextSize=18
     local LayoutBtn = Instance.new("TextButton", BtnContainer); LayoutBtn.Size=UDim2.new(0,30,0,30); LayoutBtn.Position=UDim2.new(1,-60,0,0); LayoutBtn.BackgroundTransparency=1; LayoutBtn.Text="+"; LayoutBtn.TextColor3=Color3.fromRGB(255,200,50); LayoutBtn.Font=Enum.Font.GothamBlack; LayoutBtn.TextSize=20
     local MinBtn = Instance.new("TextButton", BtnContainer); MinBtn.Size=UDim2.new(0,30,0,30); MinBtn.Position=UDim2.new(1,-90,0,0); MinBtn.BackgroundTransparency=1; MinBtn.Text="_"; MinBtn.TextColor3=Theme.Accent; MinBtn.Font=Enum.Font.GothamBlack; MinBtn.TextSize=18
 
-    -- LAYOUT
+    -- CONTAINERS
     local Sidebar = Instance.new("ScrollingFrame", MainFrame); Sidebar.Size=UDim2.new(0,110,1,-35); Sidebar.Position=UDim2.new(0,0,0,35); Sidebar.BackgroundColor3=Theme.Sidebar; Sidebar.ScrollBarThickness=0; Sidebar.BorderSizePixel=0; UIRefs.Sidebar=Sidebar
     local SideLayout = Instance.new("UIListLayout", Sidebar); SideLayout.HorizontalAlignment=Enum.HorizontalAlignment.Center; SideLayout.Padding=UDim.new(0,6); Instance.new("UIPadding", Sidebar).PaddingTop=UDim.new(0,10)
     local Content = Instance.new("Frame", MainFrame); Content.Size=UDim2.new(1,-110,1,-35); Content.Position=UDim2.new(0,110,0,35); Content.BackgroundTransparency=1; UIRefs.Content=Content
 
-    -- DRAG & TOGGLE
+    -- DRAG & CONTROLS
     local function Drag(f, h) h=h or f; local d,ds,sp; h.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1 then d=true; ds=i.Position; sp=f.Position; i.Changed:Connect(function() if i.UserInputState==Enum.UserInputState.End then d=false end end) end end); Services.UserInputService.InputChanged:Connect(function(i) if (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) and d then local dt=i.Position-ds; f.Position=UDim2.new(sp.X.Scale,sp.X.Offset+dt.X,sp.Y.Scale,sp.Y.Offset+dt.Y) end end) end
     Drag(MainFrame); Drag(OpenBtn)
 
@@ -112,9 +111,30 @@ function UILibrary:Create()
 
     OpenBtn.MouseButton1Click:Connect(function() ToggleMenu(true) end); MinBtn.MouseButton1Click:Connect(function() ToggleMenu(false) end); LayoutBtn.MouseButton1Click:Connect(ToggleLayout)
 
-    -- TAB SYSTEM
+    -- POPUP
+    local GlobalPopup = Instance.new("Frame", ScreenGui); GlobalPopup.Size=UDim2.new(0,240,0,130); GlobalPopup.Position=UDim2.new(0.5,-120,0.5,-65); GlobalPopup.BackgroundColor3=Theme.Main; GlobalPopup.Visible=false; GlobalPopup.ZIndex=100; Instance.new("UICorner",GlobalPopup).CornerRadius=UDim.new(0,12); local PS=Instance.new("UIStroke",GlobalPopup); PS.Color=Theme.Accent; PS.Thickness=2
+    local GPTitle=Instance.new("TextLabel",GlobalPopup); GPTitle.Size=UDim2.new(1,0,0,30); GPTitle.BackgroundTransparency=1; GPTitle.Text="CONFIRMATION"; GPTitle.TextColor3=Theme.Accent; GPTitle.Font=Enum.Font.GothamBlack; GPTitle.TextSize=14; GPTitle.ZIndex=101
+    local GPDesc=Instance.new("TextLabel",GlobalPopup); GPDesc.Size=UDim2.new(0.9,0,0.4,0); GPDesc.Position=UDim2.new(0.05,0,0.25,0); GPDesc.BackgroundTransparency=1; GPDesc.Text="Are you sure?"; GPDesc.TextColor3=Theme.Text; GPDesc.Font=Enum.Font.Gotham; GPDesc.TextSize=12; GPDesc.TextWrapped=true; GPDesc.ZIndex=101
+    local GPYes=Instance.new("TextButton",GlobalPopup); GPYes.Size=UDim2.new(0.4,0,0.25,0); GPYes.Position=UDim2.new(0.05,0,0.7,0); GPYes.BackgroundColor3=Theme.Confirm; GPYes.Text="YES"; GPYes.TextColor3=Theme.Text; GPYes.ZIndex=101; Instance.new("UICorner",GPYes).CornerRadius=UDim.new(0,6)
+    local GPNo=Instance.new("TextButton",GlobalPopup); GPNo.Size=UDim2.new(0.4,0,0.25,0); GPNo.Position=UDim2.new(0.55,0,0.7,0); GPNo.BackgroundColor3=Theme.ButtonRed; GPNo.Text="NO"; GPNo.TextColor3=Theme.Text; GPNo.ZIndex=101; Instance.new("UICorner",GPNo).CornerRadius=UDim.new(0,6)
+    local PopupAction = nil
+    GPNo.MouseButton1Click:Connect(function() GlobalPopup.Visible=false; PopupAction=nil end); GPYes.MouseButton1Click:Connect(function() if PopupAction then PopupAction() end; GlobalPopup.Visible=false end)
+    
+    function UILibrary:Confirm(t,c) GPDesc.Text=t; PopupAction=c; GlobalPopup.Visible=true end
+    function UILibrary:GetScreenGui() return ScreenGui end
+    CloseX.MouseButton1Click:Connect(function() UILibrary:Confirm("Close script?", function() Config.OnReset:Fire(); ScreenGui:Destroy() end) end)
+
+    -- [FIX] TAB SYSTEM YANG MENCEGAH DUPLIKAT
     local Tabs = {}
+    local TabsDict = {} -- Penyimpanan Tab agar tidak double
+
     function UILibrary:Tab(name)
+        -- Cek apakah tab sudah ada? Jika ya, kembalikan tab yang lama (JANGAN BUAT BARU)
+        if TabsDict[name] then
+            return TabsDict[name]
+        end
+        
+        -- Jika belum ada, baru buat tab baru
         local TabBtn = Instance.new("TextButton", Sidebar); TabBtn.Size=UDim2.new(0.85,0,0,28); TabBtn.BackgroundColor3=Theme.Button; TabBtn.Text=name; TabBtn.TextColor3=Color3.fromRGB(200,200,200); TabBtn.Font=Enum.Font.GothamBold; TabBtn.TextSize=10; Instance.new("UICorner",TabBtn).CornerRadius=UDim.new(0,6)
         local TabContent = Instance.new("ScrollingFrame", Content); TabContent.Size=UDim2.new(1,-5,1,0); TabContent.BackgroundTransparency=1; TabContent.ScrollBarThickness=2; TabContent.Visible=false; TabContent.AutomaticCanvasSize=Enum.AutomaticSize.Y; Instance.new("UIListLayout", TabContent).Padding=UDim.new(0,5); Instance.new("UIPadding", TabContent).PaddingTop=UDim.new(0,5)
         
@@ -128,15 +148,18 @@ function UILibrary:Create()
         function El:Input(p,f) local fr=Instance.new("Frame",TabContent); fr.Size=UDim2.new(1,0,0,26); fr.BackgroundColor3=Color3.fromRGB(35,35,35); Instance.new("UICorner",fr).CornerRadius=UDim.new(0,6); local b=Instance.new("TextBox",fr); b.Size=UDim2.new(0.9,0,1,0); b.Position=UDim2.new(0.05,0,0,0); b.BackgroundTransparency=1; b.Text=""; b.PlaceholderText=p; b.TextColor3=Color3.new(1,1,1); b.Font=Enum.Font.Gotham; b.TextSize=11; b:GetPropertyChangedSignal("Text"):Connect(function() if f then pcall(f,b.Text) end end) end
         function El:Slider(t,min,max,f) local fr=Instance.new("Frame",TabContent);fr.Size=UDim2.new(1,0,0,32);fr.BackgroundColor3=Theme.Button;Instance.new("UICorner",fr).CornerRadius=UDim.new(0,6);local l=Instance.new("TextLabel",fr);l.Size=UDim2.new(1,0,0.5,0);l.Position=UDim2.new(0.05,0,0,0);l.BackgroundTransparency=1;l.Text=t;l.TextColor3=Color3.new(1,1,1);l.TextSize=10;l.TextXAlignment=Enum.TextXAlignment.Left;local b=Instance.new("TextButton",fr);b.Size=UDim2.new(0.9,0,0.3,0);b.Position=UDim2.new(0.05,0,0.6,0);b.BackgroundColor3=Color3.fromRGB(30,30,30);b.Text="";local fil=Instance.new("Frame",b);fil.Size=UDim2.new(0,0,1,0);fil.BackgroundColor3=Theme.Accent;b.MouseButton1Down:Connect(function() local m;m=Services.RunService.RenderStepped:Connect(function() local s=math.clamp((Services.UserInputService:GetMouseLocation().X-b.AbsolutePosition.X)/b.AbsoluteSize.X,0,1);fil.Size=UDim2.new(s,0,1,0);if f then pcall(f,min+(max-min)*s) end;if not Services.UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then m:Disconnect() end end) end) end
         function El:Container(h) local c=Instance.new("ScrollingFrame",TabContent); c.Size=UDim2.new(1,0,0,h); c.BackgroundColor3=Color3.fromRGB(25,25,25); c.ScrollBarThickness=2; Instance.new("UICorner",c).CornerRadius=UDim.new(0,6); Instance.new("UIListLayout",c).Padding=UDim.new(0,2); c.AutomaticCanvasSize=Enum.AutomaticSize.Y; return c end
+        
+        -- Simpan tab ke dictionary agar tidak dibuat ulang
+        TabsDict[name] = El
         return El
     end
     
-    CloseX.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
-    spawn(function() task.wait(0.5); if #Tabs>0 then Tabs[1].Button:Fire() end end)
+    -- Expose Open Button untuk Loading Screen
+    UILibrary.OpenBtn = OpenBtn
+    
     return UILibrary, ScreenGui
 end
 
--- Create UI
 local UI, ScreenGui = UILibrary:Create()
 
 -- >>> LOADING SCREEN SYSTEM <<<
@@ -146,49 +169,23 @@ local function CreateLoadingScreen()
     LoaderFrame.Size = UDim2.new(0, 300, 0, 150)
     LoaderFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
     LoaderFrame.BackgroundColor3 = Theme.Main
-    LoaderFrame.ZIndex = 100
-    
+    LoaderFrame.ZIndex = 200
     Instance.new("UICorner", LoaderFrame).CornerRadius = UDim.new(0, 10)
-    local LS = Instance.new("UIStroke", LoaderFrame)
-    LS.Color = Theme.Accent
-    LS.Thickness = 2
+    local LS = Instance.new("UIStroke", LoaderFrame); LS.Color = Theme.Accent; LS.Thickness = 2
     
-    -- Logo / Title
     local LTitle = Instance.new("TextLabel", LoaderFrame)
-    LTitle.Size = UDim2.new(1, 0, 0, 40)
-    LTitle.Position = UDim2.new(0, 0, 0.1, 0)
-    LTitle.BackgroundTransparency = 1
-    LTitle.Text = "Vanzyxxx Modular"
-    LTitle.Font = Enum.Font.GothamBlack
-    LTitle.TextSize = 20
-    LTitle.TextColor3 = Theme.Accent
-    LTitle.ZIndex = 101
+    LTitle.Size = UDim2.new(1, 0, 0, 40); LTitle.Position = UDim2.new(0, 0, 0.1, 0); LTitle.BackgroundTransparency = 1
+    LTitle.Text = "Vanzyxxx Modular"; LTitle.Font = Enum.Font.GothamBlack; LTitle.TextSize = 20; LTitle.TextColor3 = Theme.Accent; LTitle.ZIndex = 201
     
-    -- Status Text
     local LStatus = Instance.new("TextLabel", LoaderFrame)
-    LStatus.Size = UDim2.new(1, 0, 0, 20)
-    LStatus.Position = UDim2.new(0, 0, 0.45, 0)
-    LStatus.BackgroundTransparency = 1
-    LStatus.Text = "Initializing..."
-    LStatus.Font = Enum.Font.Gotham
-    LStatus.TextSize = 14
-    LStatus.TextColor3 = Theme.Text
-    LStatus.ZIndex = 101
+    LStatus.Size = UDim2.new(1, 0, 0, 20); LStatus.Position = UDim2.new(0, 0, 0.45, 0); LStatus.BackgroundTransparency = 1
+    LStatus.Text = "Initializing..."; LStatus.Font = Enum.Font.Gotham; LStatus.TextSize = 14; LStatus.TextColor3 = Theme.Text; LStatus.ZIndex = 201
     
-    -- Progress Bar BG
     local BarBG = Instance.new("Frame", LoaderFrame)
-    BarBG.Size = UDim2.new(0.8, 0, 0, 10)
-    BarBG.Position = UDim2.new(0.1, 0, 0.7, 0)
-    BarBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    BarBG.ZIndex = 101
-    Instance.new("UICorner", BarBG).CornerRadius = UDim.new(1, 0)
+    BarBG.Size = UDim2.new(0.8, 0, 0, 10); BarBG.Position = UDim2.new(0.1, 0, 0.7, 0); BarBG.BackgroundColor3 = Color3.fromRGB(40, 40, 40); BarBG.ZIndex = 201; Instance.new("UICorner", BarBG).CornerRadius = UDim.new(1, 0)
     
-    -- Progress Fill
     local BarFill = Instance.new("Frame", BarBG)
-    BarFill.Size = UDim2.new(0, 0, 1, 0)
-    BarFill.BackgroundColor3 = Theme.Accent
-    BarFill.ZIndex = 102
-    Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
+    BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = Theme.Accent; BarFill.ZIndex = 202; Instance.new("UICorner", BarFill).CornerRadius = UDim.new(1, 0)
     
     return LoaderFrame, LStatus, BarFill
 end
@@ -221,13 +218,9 @@ function FeatureLoader:LoadAllFeatures()
     local Loader, StatusLbl, Bar = CreateLoadingScreen()
     local total = #FeatureList
     
-    -- Create tabs first
-    local categories = {}
-    for _, feature in ipairs(FeatureList) do
-        if not categories[feature.category] then
-            categories[feature.category] = UI:Tab(feature.category)
-        end
-    end
+    -- [FIX] HAPUS LOOP PEMBUATAN TAB MANUAL
+    -- Biarkan fitur membuat tabnya sendiri saat diload.
+    -- UILibrary:Tab sudah didesain untuk mendeteksi duplikat.
     
     -- Load loop
     for i, feature in ipairs(FeatureList) do
@@ -243,24 +236,27 @@ function FeatureLoader:LoadAllFeatures()
         end)
         
         if success and type(result) == "function" then
+            -- Pass UI Object ke Fitur
             pcall(result, UI, Services, Config, Theme)
         else
             warn("Failed to load: " .. feature.name)
+            StatusLbl.Text = "Error: " .. feature.name -- Show error briefly
+            task.wait(0.5)
         end
         
-        task.wait(0.1) -- Small delay for effect
+        task.wait(0.1)
     end
     
-    StatusLbl.Text = "Done! Opening Menu..."
+    StatusLbl.Text = "All Ready! Opening Menu..."
+    Services.TweenService:Create(Bar, TweenInfo.new(0.5), {Size = UDim2.new(1, 0, 1, 0)}):Play()
     task.wait(0.5)
     
-    -- Remove Loader
-    Services.TweenService:Create(Loader, TweenInfo.new(0.5), {Position = UDim2.new(0.5, -150, 1.2, 0)}):Play()
-    task.wait(0.5)
+    -- Hapus Loader & Tampilkan Tombol Menu
     Loader:Destroy()
+    UI.OpenBtn.Visible = true
     
-    -- Show Notification once
-    Services.StarterGui:SetCore("SendNotification", {Title = "Vanzyxxx", Text = "All Systems Ready!", Duration = 5})
+    -- Auto Select Tab Pertama
+    spawn(function() task.wait(0.5); if UI then UI:Tab("Movement") end end)
 end
 
 -- ANTI AFK
