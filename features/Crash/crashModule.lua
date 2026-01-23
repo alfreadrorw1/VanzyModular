@@ -11,7 +11,7 @@ local CrashModule = {
 
 -- Inisialisasi Crash Module
 function CrashModule:Init(UI, Services, Config, Theme)
-    local tab = UI:Tab("CRASH")
+    local tab = UI:Tab("Crash")
     
     tab:Label("⚠️ SERVER DESTROYER ⚠️")
     tab:Label("Fitur ini dapat menyebabkan:")
