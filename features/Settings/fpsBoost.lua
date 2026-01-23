@@ -6,7 +6,7 @@ return function(UI, Services, Config, Theme)
     local StarterGui = Services.StarterGui
     local UserInputService = Services.UserInputService
     
-    local FPSBoostTab = UI:Tab("FPS Boost")
+    local FPSBoostTab = UI:Tab("Settings")
     
     -- Performance Variables
     local OriginalSettings = {}

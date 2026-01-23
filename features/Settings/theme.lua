@@ -4,7 +4,7 @@ return function(UI, Services, Config, Theme)
     local TweenService = Services.TweenService
     local StarterGui = Services.StarterGui
     
-    local ThemeTab = UI:Tab("Theme")
+    local ThemeTab = UI:Tab("Settings")
     
     -- Theme Colors Database
     local ThemeColors = {
