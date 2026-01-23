@@ -19,7 +19,6 @@ local Services = {
 -- GLOBALS
 local LocalPlayer = Services.Players.LocalPlayer
 local Camera = Services.Workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 
 -- CONFIG GLOBAL
 local Config = {
@@ -364,8 +363,13 @@ function UILibrary:Create()
     
     -- Tab System
     local Tabs = {}
+    local TabsDict = {}
     
     function UILibrary:Tab(name)
+        if TabsDict[name] then
+            return TabsDict[name]
+        end
+        
         local TabButton = Instance.new("TextButton", Sidebar)
         TabButton.Size = UDim2.new(0.85, 0, 0, 28)
         TabButton.BackgroundColor3 = Theme.Button
@@ -378,6 +382,7 @@ function UILibrary:Create()
         ButtonCorner.CornerRadius = UDim.new(0, 6)
         
         local TabContent = Instance.new("ScrollingFrame", Content)
+        TabContent.Name = name .. "Content"
         TabContent.Size = UDim2.new(1, -5, 1, 0)
         TabContent.BackgroundTransparency = 1
         TabContent.ScrollBarThickness = 2
@@ -402,8 +407,6 @@ function UILibrary:Create()
             TabButton.BackgroundColor3 = Theme.Accent
             TabButton.TextColor3 = Color3.new(1, 1, 1)
         end)
-        
-        table.insert(Tabs, {Button = TabButton, Content = TabContent})
         
         local Elements = {}
         
@@ -455,8 +458,26 @@ function UILibrary:Create()
             toggleButton.MouseButton1Click:Connect(function()
                 state = not state
                 toggleButton.BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(60, 60, 60)
-                callback(state)
+                if callback then
+                    pcall(callback, state)
+                end
             end)
+            
+            -- Return toggle object for external control
+            local toggleObj = {
+                SetState = function(newState)
+                    state = newState
+                    toggleButton.BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(60, 60, 60)
+                    if callback then
+                        pcall(callback, state)
+                    end
+                end,
+                GetState = function()
+                    return state
+                end
+            }
+            
+            return toggleObj
         end
         
         function Elements:Input(placeholder, callback)
@@ -478,7 +499,9 @@ function UILibrary:Create()
             textBox.TextSize = 11
             
             textBox:GetPropertyChangedSignal("Text"):Connect(function()
-                callback(textBox.Text)
+                if callback then
+                    pcall(callback, textBox.Text)
+                end
             end)
         end
         
@@ -528,7 +551,9 @@ function UILibrary:Create()
                         0, 1
                     )
                     fill.Size = UDim2.new(percent, 0, 1, 0)
-                    callback(min + (max - min) * percent)
+                    if callback then
+                        pcall(callback, min + (max - min) * percent)
+                    end
                     
                     if not Services.UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
                         connection:Disconnect()
@@ -553,6 +578,9 @@ function UILibrary:Create()
             return container
         end
         
+        table.insert(Tabs, {Button = TabButton, Content = TabContent})
+        TabsDict[name] = Elements
+        
         return Elements
     end
     
@@ -560,6 +588,10 @@ function UILibrary:Create()
         GPDesc.Text = text
         PopupAction = callback
         GlobalPopup.Visible = true
+    end
+    
+    function UILibrary:GetScreenGui()
+        return ScreenGui
     end
     
     -- Close Button Logic
@@ -589,6 +621,14 @@ function UILibrary:Create()
         end)
     end)
     
+    -- Auto-select first tab
+    spawn(function()
+        task.wait(0.5)
+        if #Tabs > 0 then
+            Tabs[1].Button:Fire()
+        end
+    end)
+    
     return UILibrary, ScreenGui
 end
 
@@ -601,82 +641,131 @@ local FeatureLoader = {
     FeatureErrors = {}
 }
 
-function FeatureLoader:LoadFromGitHub(folder, baseURL)
-    local featureFolders = {
-        "Movement",
-        "Visual",
-        "Aura",
-        "Checkpoint",
-        "Settings"
-    }
+-- GitHub base URL (GANTI DENGAN URL REPO ANDA)
+local GitHubBaseURL = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/main/"
+
+-- List of all features to load
+local FeatureList = {
+    -- Movement Features
+    {category = "Movement", name = "fly", url = GitHubBaseURL .. "features/Movement/fly.lua"},
+    {category = "Movement", name = "speed", url = GitHubBaseURL .. "features/Movement/speed.lua"},
+    {category = "Movement", name = "infinityJump", url = GitHubBaseURL .. "features/Movement/infinityJump.lua"},
+    {category = "Movement", name = "noclip", url = GitHubBaseURL .. "features/Movement/noclip.lua"},
+    {category = "Movement", name = "wallClimb", url = GitHubBaseURL .. "features/Movement/wallClimb.lua"},
     
+    -- Visual Features
+    {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
+    {category = "Visual", name = "fullbright", url = GitHubBaseURL .. "features/Visual/fullbright.lua"},
+    {category = "Visual", name = "sky", url = GitHubBaseURL .. "features/Visual/sky.lua"},
+    
+    -- Aura Features
+    {category = "Aura", name = "aura", url = GitHubBaseURL .. "features/Aura/aura.lua"},
+    
+    -- Checkpoint Features
+    {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
+    {category = "Checkpoint", name = "autoPlay", url = GitHubBaseURL .. "features/Checkpoint/autoPlay.lua"},
+    
+    -- Settings Features
+    {category = "Settings", name = "theme", url = GitHubBaseURL .. "features/Settings/theme.lua"},
+    {category = "Settings", name = "fpsBoost", url = GitHubBaseURL .. "features/Settings/fpsBoost.lua"}
+}
+
+function FeatureLoader:LoadFeature(featureInfo)
+    local success, result = pcall(function()
+        -- Load the feature code from GitHub
+        local featureCode = game:HttpGet(featureInfo.url, true)
+        if not featureCode or featureCode == "" then
+            return nil, "Empty response from GitHub"
+        end
+        
+        -- Convert to function
+        local featureFunc, compileError = loadstring(featureCode)
+        if not featureFunc then
+            return nil, "Compile error: " .. tostring(compileError)
+        end
+        
+        -- Execute feature function
+        return featureFunc()
+    end)
+    
+    if success and result and type(result) == "function" then
+        -- Execute the feature with parameters
+        pcall(result, UI, Services, Config, Theme)
+        FeatureLoader.LoadedFeatures[featureInfo.name] = true
+        
+        Services.StarterGui:SetCore("SendNotification", {
+            Title = "✓ Loaded",
+            Text = featureInfo.name,
+            Duration = 2
+        })
+        
+        return true
+    else
+        FeatureLoader.FeatureErrors[featureInfo.name] = tostring(result)
+        
+        Services.StarterGui:SetCore("SendNotification", {
+            Title = "✗ Failed",
+            Text = featureInfo.name .. " failed",
+            Duration = 3
+        })
+        
+        warn("[Vanzyxxx] Failed to load feature: " .. featureInfo.name)
+        warn("Error: " .. tostring(result))
+        return false
+    end
+end
+
+function FeatureLoader:LoadAllFeatures()
     Services.StarterGui:SetCore("SendNotification", {
         Title = "Vanzyxxx",
-        Text = "Loading features..."
+        Text = "Loading features...",
+        Duration = 3
     })
     
-    for _, folderName in pairs(featureFolders) do
-        -- Create Tab for folder
-        local tab = UI:Tab(folderName)
-        
-        -- Load all features in this folder
-        local features = {
-            ["Movement"] = {"fly", "speed", "infinityJump", "noclip", "wallClimb"},
-            ["Visual"] = {"esp", "fullbright", "sky"},
-            ["Aura"] = {"aura"},
-            ["Checkpoint"] = {"saveLoadCP", "autoPlay"},
-            ["Settings"] = {"theme", "fpsBoost"}
-        }
-        
-        if features[folderName] then
-            for _, featureName in pairs(features[folderName]) do
-                local featureURL = baseURL .. folderName .. "/" .. featureName .. ".lua"
-                
-                pcall(function()
-                    Services.StarterGui:SetCore("SendNotification", {
-                        Title = "Loading",
-                        Text = "Loading " .. featureName .. ".lua..."
-                    })
-                    
-                    local success, featureFunc = pcall(function()
-                        return loadstring(game:HttpGet(featureURL))()
-                    end)
-                    
-                    if success and type(featureFunc) == "function" then
-                        featureFunc(UI, Services, Config, Theme)
-                        FeatureLoader.LoadedFeatures[featureName] = true
-                        
-                        Services.StarterGui:SetCore("SendNotification", {
-                            Title = "Success",
-                            Text = featureName .. " loaded!"
-                        })
-                    else
-                        FeatureLoader.FeatureErrors[featureName] = "Failed to load"
-                        warn("Failed to load feature: " .. featureName)
-                    end
-                end)
-                
-                task.wait(0.5) -- Prevent rate limiting
-            end
+    local loadedCount = 0
+    local failedCount = 0
+    
+    -- Create tabs for each category first
+    local categories = {}
+    for _, feature in ipairs(FeatureList) do
+        if not categories[feature.category] then
+            categories[feature.category] = UI:Tab(feature.category)
         end
     end
     
-    -- Summary notification
-    local loadedCount = 0
-    for _ in pairs(FeatureLoader.LoadedFeatures) do
-        loadedCount = loadedCount + 1
+    -- Load features with delay to prevent rate limiting
+    for _, feature in ipairs(FeatureList) do
+        Services.StarterGui:SetCore("SendNotification", {
+            Title = "Loading...",
+            Text = feature.name .. ".lua",
+            Duration = 1
+        })
+        
+        local success = FeatureLoader:LoadFeature(feature)
+        
+        if success then
+            loadedCount = loadedCount + 1
+        else
+            failedCount = failedCount + 1
+        end
+        
+        task.wait(0.3) -- Delay to prevent rate limiting
     end
     
+    -- Show summary
+    local summary = string.format("Loaded: %d | Failed: %d", loadedCount, failedCount)
+    
     Services.StarterGui:SetCore("SendNotification", {
-        Title = "Vanzyxxx",
-        Text = "Loaded " .. loadedCount .. " features!",
+        Title = "Vanzyxxx Ready!",
+        Text = summary,
         Duration = 5
     })
     
-    if next(FeatureLoader.FeatureErrors) then
-        warn("Some features failed to load:")
-        for feature, error in pairs(FeatureLoader.FeatureErrors) do
-            warn("  " .. feature .. ": " .. error)
+    -- Print errors to console
+    if failedCount > 0 then
+        warn("[Vanzyxxx] Some features failed to load:")
+        for featureName, errorMsg in pairs(FeatureLoader.FeatureErrors) do
+            warn("  " .. featureName .. ": " .. errorMsg)
         end
     end
 end
@@ -689,20 +778,27 @@ LocalPlayer.Idled:Connect(function()
     vu:Button2Up(Vector2.new(0,0), Services.Workspace.CurrentCamera.CFrame)
 end)
 
--- Start loading features
-Services.StarterGui:SetCore("SendNotification", {
-    Title = "Vanzyxxx",
-    Text = "Modular V6 Loading...",
-    Duration = 3
-})
+-- Start loading features with delay
+spawn(function()
+    task.wait(1) -- Wait for UI to initialize
+    
+    FeatureLoader:LoadAllFeatures()
+    
+    -- Auto-open menu
+    task.wait(1)
+    Services.StarterGui:SetCore("SendNotification", {
+        Title = "Vanzyxxx Modular",
+        Text = "Click logo to open menu!",
+        Duration = 5
+    })
+end)
 
--- Load features from GitHub
-FeatureLoader:LoadFromGitHub("features", "https://raw.githubusercontent.com/alfreadrorw1/VanzyModular/main/")
-
+-- Return for external use if needed
 return {
     UI = UI,
     Services = Services,
     Config = Config,
     Theme = Theme,
-    ScreenGui = ScreenGui
+    ScreenGui = ScreenGui,
+    FeatureLoader = FeatureLoader
 }
