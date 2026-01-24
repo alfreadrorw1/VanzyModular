@@ -662,10 +662,7 @@ local FeatureList = {
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
-    {category = "Visual", name = "connectionDisplay", url = GitHubBaseURL .. "features/Visual/connectionDisplay.lua"},
-    {category = "Fun", name = "dummyArmy", url = GitHubBaseURL .. "features/Fun/dummyArmy.lua"},
-    {category = "Fun", name = "screenDomination", url = GitHubBaseURL .. "features/Fun/screenDomination.lua"},
-    
+
     -- Recording
     {category = "Record", name = "recording", url = GitHubBaseURL .. "features/Record/recording.lua"},
     
@@ -675,7 +672,6 @@ local FeatureList = {
     
     -- Checkpoint Features
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
-    {category = "Crash", name = "serverCrash", url = GitHubBaseURL .. "features/Crash/serverCrash.lua"},
     
     -- Settings Features
     {category = "Settings", name = "theme", url = GitHubBaseURL .. "features/Settings/theme.lua"},
