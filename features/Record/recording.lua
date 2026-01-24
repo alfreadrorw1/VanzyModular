@@ -1,4 +1,3 @@
--- recording.lua (UPDATED VERSION)
 return function(UI, Services, Config, Theme)
     -- // SERVICES //
     local Players = Services.Players
@@ -8,6 +7,7 @@ return function(UI, Services, Config, Theme)
     local StarterGui = Services.StarterGui
     local MarketplaceService = Services.MarketplaceService
     local TweenService = Services.TweenService
+    local CoreGui = Services.CoreGui
     
     local LocalPlayer = Players.LocalPlayer
     
@@ -43,11 +43,8 @@ return function(UI, Services, Config, Theme)
     local FileContainer = nil
     local MapContainer = nil
     local RefreshInProgress = false
-    
-    -- ========================
-    -- 1. UTILITY FUNCTIONS - ANTI JATUH
-    -- ========================
-    
+
+    -- // UTILITY FUNCTIONS //
     local function cn(num)
         return math.floor(num * 1000000) / 1000000
     end
@@ -111,11 +108,8 @@ return function(UI, Services, Config, Theme)
             t[10], t[11], t[12]
         )
     end
-    
-    -- ========================
-    -- DETEKSI JATUH & POSISI AMAN
-    -- ========================
-    
+
+    -- // ANTI-FALL DETECTION SYSTEM //
     local function IsCharacterFalling(char)
         if not char then return false end
         
@@ -123,17 +117,14 @@ return function(UI, Services, Config, Theme)
         local hrp = char:FindFirstChild("HumanoidRootPart")
         
         if hum and hrp then
-            -- Deteksi state jatuh
             if hum:GetState().Name == "Freefall" then
                 return true
             end
             
-            -- Deteksi kecepatan jatuh
             if hrp.Velocity.Y < -50 then
                 return true
             end
             
-            -- Raycast untuk deteksi ketinggian
             local ray = Ray.new(hrp.Position, Vector3.new(0, -100, 0))
             local hit, pos = workspace:FindPartOnRay(ray, char)
             
@@ -163,7 +154,6 @@ return function(UI, Services, Config, Theme)
         
         local safeIndex = GetLastSafeFrameIndex(recordData.Frames)
         if safeIndex < #recordData.Frames then
-            print("[VanzyRecord] Removing " .. (#recordData.Frames - safeIndex) .. " falling frames")
             for i = #recordData.Frames, safeIndex + 1, -1 do
                 table.remove(recordData.Frames, i)
             end
@@ -171,36 +161,37 @@ return function(UI, Services, Config, Theme)
         
         return recordData
     end
-    
-    -- ========================
-    -- 2. CHECKPOINT SYSTEM + POP UP
-    -- ========================
-    
+
+    -- // CHECKPOINT POPUP SYSTEM //
     local function ShowCheckpointPopup(cpNum, callback)
         local popupResult = {value = nil}
         
         local PopupGui = Instance.new("ScreenGui")
         PopupGui.Name = "CheckpointPopup"
         PopupGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        PopupGui.DisplayOrder = 999 -- High ZIndex
         
         if syn and syn.protect_gui then
             syn.protect_gui(PopupGui)
         end
         
-        PopupGui.Parent = Services.CoreGui
+        PopupGui.Parent = CoreGui
         
         local PopupFrame = Instance.new("Frame", PopupGui)
         PopupFrame.Size = UDim2.new(0, 320, 0, 200)
         PopupFrame.Position = UDim2.new(0.5, -160, 0.5, -100)
         PopupFrame.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
         PopupFrame.BackgroundTransparency = 0.05
+        PopupFrame.ZIndex = 1000
         
         local Corner = Instance.new("UICorner", PopupFrame)
         Corner.CornerRadius = UDim.new(0, 12)
+        Corner.ZIndex = 1000
         
         local Stroke = Instance.new("UIStroke", PopupFrame)
         Stroke.Color = Color3.fromRGB(160, 32, 240)
         Stroke.Thickness = 3
+        Stroke.ZIndex = 1000
         
         local Title = Instance.new("TextLabel", PopupFrame)
         Title.Size = UDim2.new(1, 0, 0, 50)
@@ -209,6 +200,7 @@ return function(UI, Services, Config, Theme)
         Title.TextColor3 = Color3.fromRGB(255, 200, 50)
         Title.Font = Enum.Font.GothamBlack
         Title.TextSize = 18
+        Title.ZIndex = 1001
         
         local Message = Instance.new("TextLabel", PopupFrame)
         Message.Size = UDim2.new(0.9, 0, 0, 70)
@@ -219,11 +211,13 @@ return function(UI, Services, Config, Theme)
         Message.Font = Enum.Font.Gotham
         Message.TextSize = 14
         Message.TextWrapped = true
+        Message.ZIndex = 1001
         
         local ButtonContainer = Instance.new("Frame", PopupFrame)
         ButtonContainer.Size = UDim2.new(0.9, 0, 0, 50)
         ButtonContainer.Position = UDim2.new(0.05, 0, 0.7, 0)
         ButtonContainer.BackgroundTransparency = 1
+        ButtonContainer.ZIndex = 1001
         
         local YesBtn = Instance.new("TextButton", ButtonContainer)
         YesBtn.Size = UDim2.new(0.45, 0, 1, 0)
@@ -233,9 +227,11 @@ return function(UI, Services, Config, Theme)
         YesBtn.TextColor3 = Color3.new(1, 1, 1)
         YesBtn.Font = Enum.Font.GothamBold
         YesBtn.TextSize = 14
+        YesBtn.ZIndex = 1002
         
         local YesCorner = Instance.new("UICorner", YesBtn)
         YesCorner.CornerRadius = UDim.new(0, 6)
+        YesCorner.ZIndex = 1002
         
         local NoBtn = Instance.new("TextButton", ButtonContainer)
         NoBtn.Size = UDim2.new(0.45, 0, 1, 0)
@@ -245,9 +241,11 @@ return function(UI, Services, Config, Theme)
         NoBtn.TextColor3 = Color3.new(1, 1, 1)
         NoBtn.Font = Enum.Font.GothamBold
         NoBtn.TextSize = 14
+        NoBtn.ZIndex = 1002
         
         local NoCorner = Instance.new("UICorner", NoBtn)
         NoCorner.CornerRadius = UDim.new(0, 6)
+        NoCorner.ZIndex = 1002
         
         YesBtn.MouseButton1Click:Connect(function()
             popupResult.value = true
@@ -264,10 +262,7 @@ return function(UI, Services, Config, Theme)
         return popupResult
     end
 
-    -- ========================
-    -- DATA LOADING FUNCTIONS
-    -- ========================
-    
+    -- // DATA LOADING FUNCTIONS //
     local function LoadCheckpoints()
         Checkpoints = {}
         
@@ -306,11 +301,7 @@ return function(UI, Services, Config, Theme)
         print("[VanzyRecord] Loaded " .. #loadedFiles .. " checkpoints")
         return loadedFiles
     end
-    
-    -- ========================
-    -- 3. AUTOWALK SYSTEM
-    -- ========================
-    
+
     local function ScanAutoWalkMaps()
         AutoWalkMaps = {}
         
@@ -355,180 +346,7 @@ return function(UI, Services, Config, Theme)
         return AutoWalkMaps
     end
 
-    local function StartAutoWalk(mapData, startCp)
-        if Recording or Replaying or AutoWalking then 
-            StarterGui:SetCore("SendNotification", {
-                Title = "Cannot Start",
-                Text = "Stop current activity first",
-                Duration = 2
-            })
-            return 
-        end
-        
-        if not mapData or not mapData.checkpoints or #mapData.checkpoints == 0 then
-            StarterGui:SetCore("SendNotification", {
-                Title = "Invalid Map",
-                Text = "No checkpoints in this map",
-                Duration = 2
-            })
-            return
-        end
-        
-        AutoWalking = true
-        CurrentAutoWalkMap = mapData
-        CurrentCheckpointIndex = startCp or 1
-        
-        if StatusLabel then
-            StatusLabel.Text = "AUTO WALK"
-            StatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
-        end
-        
-        if WStroke then
-            WStroke.Color = Color3.fromRGB(100, 200, 255)
-        end
-        
-        if AutoWalkBtn then
-            AutoWalkBtn.Text = "⏹"
-            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-        end
-        
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-        
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChild("Humanoid")
-        
-        if not hrp or not hum then return end
-        
-        local controlBody = Instance.new("BodyVelocity", hrp)
-        controlBody.MaxForce = Vector3.new(40000, 40000, 40000)
-        controlBody.P = 1000
-        
-        local controlGyro = Instance.new("BodyGyro", hrp)
-        controlGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
-        controlGyro.P = 1000
-        
-        hum.AutoRotate = false
-        
-        local checkpointPositions = {}
-        
-        -- Load semua checkpoint positions
-        for i, cpInfo in ipairs(mapData.checkpoints) do
-            local success, data = pcall(function()
-                local content = readfile(cpInfo.path)
-                return HttpService:JSONDecode(content)
-            end)
-            
-            if success and data and data.Frames and #data.Frames > 0 then
-                local lastFrame = data.Frames[#data.Frames]
-                if lastFrame and lastFrame.cf then
-                    checkpointPositions[i] = DeserializeCFrame(lastFrame.cf).Position
-                end
-            end
-        end
-        
-        AutoWalkConnection = RunService.Heartbeat:Connect(function()
-            if not AutoWalking or not char or char.Parent == nil then
-                if AutoWalkConnection then
-                    AutoWalkConnection:Disconnect()
-                    AutoWalkConnection = nil
-                end
-                return
-            end
-            
-            if CurrentCheckpointIndex <= #mapData.checkpoints then
-                local targetPos = checkpointPositions[CurrentCheckpointIndex]
-                
-                if targetPos then
-                    local currentPos = hrp.Position
-                    local distance = (targetPos - currentPos).Magnitude
-                    
-                    if distance > 3 then
-                        local direction = (targetPos - currentPos).Unit
-                        controlBody.Velocity = direction * 16
-                        controlGyro.CFrame = CFrame.lookAt(currentPos, targetPos)
-                        
-                        if StatusLabel then
-                            StatusLabel.Text = "AUTO → CP" .. CurrentCheckpointIndex
-                        end
-                    else
-                        CurrentCheckpointIndex = CurrentCheckpointIndex + 1
-                        
-                        if CurrentCheckpointIndex <= #mapData.checkpoints then
-                            StarterGui:SetCore("SendNotification", {
-                                Title = "AutoWalk",
-                                Text = "Moving to CP" .. CurrentCheckpointIndex,
-                                Duration = 1
-                            })
-                        else
-                            StopAutoWalk()
-                            StarterGui:SetCore("SendNotification", {
-                                Title = "AutoWalk Complete",
-                                Text = "Reached all checkpoints",
-                                Duration = 3
-                            })
-                        end
-                    end
-                end
-            else
-                StopAutoWalk()
-            end
-        end)
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "AutoWalk Started",
-            Text = mapData.name .. " (from CP" .. (startCp or 1) .. ")",
-            Duration = 2
-        })
-    end
-
-    local function StopAutoWalk()
-        if not AutoWalking then return end
-        
-        AutoWalking = false
-        
-        if AutoWalkConnection then
-            AutoWalkConnection:Disconnect()
-            AutoWalkConnection = nil
-        end
-        
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local controlBody = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyVelocity")
-            local controlGyro = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyGyro")
-            
-            if controlBody then controlBody:Destroy() end
-            if controlGyro then controlGyro:Destroy() end
-            
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.AutoRotate = true end
-        end
-        
-        if StatusLabel then
-            StatusLabel.Text = "READY"
-            StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-        end
-        
-        if WStroke then
-            WStroke.Color = Theme.Accent
-        end
-        
-        if AutoWalkBtn then
-            AutoWalkBtn.Text = "A"
-            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-        end
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "AutoWalk Stopped",
-            Text = "Stopped at CP" .. (CurrentCheckpointIndex - 1),
-            Duration = 2
-        })
-    end
-    
-    -- ========================
-    -- 1. RECORDING SYSTEM (ANTI JATUH)
-    -- ========================
-    
+    -- // RECORDING SYSTEM //
     local function StartRecording()
         if Recording or Replaying or AutoWalking then 
             StarterGui:SetCore("SendNotification", {
@@ -699,11 +517,6 @@ return function(UI, Services, Config, Theme)
         if WStroke then
             WStroke.Color = Color3.fromRGB(255, 200, 50)
         end
-        
-        -- ========================
-        -- 4. AUTO REFRESH SAAT STOP RECORD
-        -- ========================
-        AutoRefreshState()
     end
 
     local function SaveCheckpoint()
@@ -751,11 +564,8 @@ return function(UI, Services, Config, Theme)
         
         CurrentRecord = {Frames = {}, Metadata = {}}
     end
-    
-    -- ========================
-    -- REPLAY SYSTEM (BERHENTI SEBELUM JATUH)
-    -- ========================
-    
+
+    -- // REPLAY SYSTEM //
     local function PlayReplay(checkpointData)
         if Recording or Replaying or AutoWalking then 
             StarterGui:SetCore("SendNotification", {
@@ -807,28 +617,10 @@ return function(UI, Services, Config, Theme)
         local replayStart = os.clock()
         local frameIndex = 1
         
-        -- HANYA memainkan frame yang aman (tidak jatuh)
-        local safeFrames = {}
-        for _, frame in ipairs(checkpointData.Frames) do
-            if frame.isSafe == nil or frame.isSafe == true then
-                table.insert(safeFrames, frame)
-            end
-        end
-        
-        if #safeFrames == 0 then
-            StarterGui:SetCore("SendNotification", {
-                Title = "No Safe Frames",
-                Text = "Cannot replay (all frames are falling)",
-                Duration = 2
-            })
-            StopReplay()
-            return
-        end
-        
         ReplayConnection = RunService.Heartbeat:Connect(function()
             if not Replaying or not LocalPlayer.Character then return end
             
-            if frameIndex > #safeFrames then
+            if frameIndex > #checkpointData.Frames then
                 Replaying = false
                 ReplayConnection:Disconnect()
                 ReplayConnection = nil
@@ -836,12 +628,6 @@ return function(UI, Services, Config, Theme)
                 controlBody:Destroy()
                 controlGyro:Destroy()
                 hum.AutoRotate = true
-                
-                -- Set posisi ke frame terakhir yang aman
-                local lastSafeFrame = safeFrames[#safeFrames]
-                if lastSafeFrame and lastSafeFrame.cf then
-                    hrp.CFrame = DeserializeCFrame(lastSafeFrame.cf)
-                end
                 
                 if StatusLabel then
                     StatusLabel.Text = "READY"
@@ -852,16 +638,10 @@ return function(UI, Services, Config, Theme)
                     WStroke.Color = Theme.Accent
                 end
                 
-                StarterGui:SetCore("SendNotification", {
-                    Title = "Replay Complete",
-                    Text = "Ended at safe position",
-                    Duration = 2
-                })
-                
                 return
             end
             
-            local frame = safeFrames[frameIndex]
+            local frame = checkpointData.Frames[frameIndex]
             if frame and frame.cf then
                 hrp.CFrame = DeserializeCFrame(frame.cf)
             end
@@ -871,7 +651,7 @@ return function(UI, Services, Config, Theme)
         
         StarterGui:SetCore("SendNotification", {
             Title = "Replay Started",
-            Text = "Playing " .. #safeFrames .. " safe frames",
+            Text = "Playing " .. #checkpointData.Frames .. " frames",
             Duration = 2
         })
     end
@@ -912,40 +692,156 @@ return function(UI, Services, Config, Theme)
             Duration = 1
         })
     end
-    
-    -- ========================
-    -- 4. AUTO REFRESH SYSTEM
-    -- ========================
-    
-    local function AutoRefreshState()
-        print("[VanzyRecord] Auto-refreshing state...")
-        
-        -- Reset semua state yang sedang aktif
-        if Recording then
-            StopRecording()
+
+    -- // AUTOWALK SYSTEM //
+    local function StartAutoWalk(mapData, startCp)
+        if Recording or Replaying or AutoWalking then 
+            StarterGui:SetCore("SendNotification", {
+                Title = "Cannot Start",
+                Text = "Stop current activity first",
+                Duration = 2
+            })
+            return 
         end
         
-        if Replaying then
-            StopReplay()
+        if not mapData or not mapData.checkpoints or #mapData.checkpoints == 0 then
+            StarterGui:SetCore("SendNotification", {
+                Title = "Invalid Map",
+                Text = "No checkpoints in this map",
+                Duration = 2
+            })
+            return
         end
         
-        if AutoWalking then
-            StopAutoWalk()
+        AutoWalking = true
+        CurrentAutoWalkMap = mapData
+        CurrentCheckpointIndex = startCp or 1
+        
+        if StatusLabel then
+            StatusLabel.Text = "AUTO WALK"
+            StatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
         end
         
-        -- Load ulang data terbaru
-        LoadCheckpoints()
+        if WStroke then
+            WStroke.Color = Color3.fromRGB(100, 200, 255)
+        end
         
-        -- Reset LastSafePosition
+        if AutoWalkBtn then
+            AutoWalkBtn.Text = "⏹"
+            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        
+        if not hrp or not hum then return end
+        
+        local controlBody = Instance.new("BodyVelocity", hrp)
+        controlBody.MaxForce = Vector3.new(40000, 40000, 40000)
+        controlBody.P = 1000
+        
+        local controlGyro = Instance.new("BodyGyro", hrp)
+        controlGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        controlGyro.P = 1000
+        
+        hum.AutoRotate = false
+        
+        local checkpointPositions = {}
+        
+        for i, cpInfo in ipairs(mapData.checkpoints) do
+            local success, data = pcall(function()
+                local content = readfile(cpInfo.path)
+                return HttpService:JSONDecode(content)
+            end)
+            
+            if success and data and data.Frames and #data.Frames > 0 then
+                local lastFrame = data.Frames[#data.Frames]
+                if lastFrame and lastFrame.cf then
+                    checkpointPositions[i] = DeserializeCFrame(lastFrame.cf).Position
+                end
+            end
+        end
+        
+        AutoWalkConnection = RunService.Heartbeat:Connect(function()
+            if not AutoWalking or not char or char.Parent == nil then
+                if AutoWalkConnection then
+                    AutoWalkConnection:Disconnect()
+                    AutoWalkConnection = nil
+                end
+                return
+            end
+            
+            if CurrentCheckpointIndex <= #mapData.checkpoints then
+                local targetPos = checkpointPositions[CurrentCheckpointIndex]
+                
+                if targetPos then
+                    local currentPos = hrp.Position
+                    local distance = (targetPos - currentPos).Magnitude
+                    
+                    if distance > 3 then
+                        local direction = (targetPos - currentPos).Unit
+                        controlBody.Velocity = direction * 16
+                        controlGyro.CFrame = CFrame.lookAt(currentPos, targetPos)
+                        
+                        if StatusLabel then
+                            StatusLabel.Text = "AUTO → CP" .. CurrentCheckpointIndex
+                        end
+                    else
+                        CurrentCheckpointIndex = CurrentCheckpointIndex + 1
+                        
+                        if CurrentCheckpointIndex <= #mapData.checkpoints then
+                            StarterGui:SetCore("SendNotification", {
+                                Title = "AutoWalk",
+                                Text = "Moving to CP" .. CurrentCheckpointIndex,
+                                Duration = 1
+                            })
+                        else
+                            StopAutoWalk()
+                            StarterGui:SetCore("SendNotification", {
+                                Title = "AutoWalk Complete",
+                                Text = "Reached all checkpoints",
+                                Duration = 3
+                            })
+                        end
+                    end
+                end
+            else
+                StopAutoWalk()
+            end
+        end)
+        
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoWalk Started",
+            Text = mapData.name .. " (from CP" .. (startCp or 1) .. ")",
+            Duration = 2
+        })
+    end
+
+    local function StopAutoWalk()
+        if not AutoWalking then return end
+        
+        AutoWalking = false
+        
+        if AutoWalkConnection then
+            AutoWalkConnection:Disconnect()
+            AutoWalkConnection = nil
+        end
+        
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
-            LastSafePosition = char:FindFirstChild("HumanoidRootPart").CFrame
+            local controlBody = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyVelocity")
+            local controlGyro = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyGyro")
+            
+            if controlBody then controlBody:Destroy() end
+            if controlGyro then controlGyro:Destroy() end
+            
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then hum.AutoRotate = true end
         end
         
-        -- Reset CurrentRecord untuk recording berikutnya
-        CurrentRecord = {Frames = {}, Metadata = {}}
-        
-        -- Update UI status
         if StatusLabel then
             StatusLabel.Text = "READY"
             StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -955,9 +851,19 @@ return function(UI, Services, Config, Theme)
             WStroke.Color = Theme.Accent
         end
         
-        print("[VanzyRecord] State auto-refreshed")
+        if AutoWalkBtn then
+            AutoWalkBtn.Text = "A"
+            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+        end
+        
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoWalk Stopped",
+            Text = "Stopped at CP" .. (CurrentCheckpointIndex - 1),
+            Duration = 2
+        })
     end
 
+    -- // AUTO-REFRESH SYSTEM //
     local function RefreshAllData()
         if RefreshInProgress then return end
         
@@ -969,7 +875,10 @@ return function(UI, Services, Config, Theme)
         local autoWalkMaps = ScanAutoWalkMaps()
         
         if FileContainer then
-            for _, child in ipairs(FileContainer:GetChildren()) do
+            -- Clear existing UI elements
+            local children = FileContainer:GetChildren()
+            for i = #children, 1, -1 do
+                local child = children[i]
                 if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
                     child:Destroy()
                 end
@@ -984,15 +893,18 @@ return function(UI, Services, Config, Theme)
                 lbl.Font = Enum.Font.Gotham
                 lbl.TextSize = 12
                 lbl.TextWrapped = true
+                lbl.ZIndex = 5
             else
                 for _, cpInfo in ipairs(checkpoints) do
                     local frame = Instance.new("Frame", FileContainer)
                     frame.Size = UDim2.new(1, -5, 0, 35)
                     frame.BackgroundColor3 = Theme.Button
                     frame.BackgroundTransparency = 0.1
+                    frame.ZIndex = 5
                     
                     local corner = Instance.new("UICorner", frame)
                     corner.CornerRadius = UDim.new(0, 4)
+                    corner.ZIndex = 5
                     
                     local label = Instance.new("TextLabel", frame)
                     label.Size = UDim2.new(0.6, 0, 1, 0)
@@ -1002,9 +914,11 @@ return function(UI, Services, Config, Theme)
                     label.TextSize = 12
                     label.TextXAlignment = Enum.TextXAlignment.Left
                     label.Font = Enum.Font.Gotham
+                    label.ZIndex = 6
                     
                     local padding = Instance.new("UIPadding", label)
                     padding.PaddingLeft = UDim.new(0, 10)
+                    padding.ZIndex = 6
                     
                     local loadBtn = Instance.new("TextButton", frame)
                     loadBtn.Size = UDim2.new(0, 50, 0.7, 0)
@@ -1014,9 +928,11 @@ return function(UI, Services, Config, Theme)
                     loadBtn.TextColor3 = Color3.new(1, 1, 1)
                     loadBtn.Font = Enum.Font.GothamBold
                     loadBtn.TextSize = 10
+                    loadBtn.ZIndex = 6
                     
                     local btnCorner = Instance.new("UICorner", loadBtn)
                     btnCorner.CornerRadius = UDim.new(0, 4)
+                    btnCorner.ZIndex = 6
                     
                     loadBtn.MouseButton1Click:Connect(function()
                         PlayReplay(cpInfo.data)
@@ -1030,9 +946,11 @@ return function(UI, Services, Config, Theme)
                     delBtn.TextColor3 = Color3.new(1, 1, 1)
                     delBtn.Font = Enum.Font.GothamBold
                     delBtn.TextSize = 10
+                    delBtn.ZIndex = 6
                     
                     local delCorner = Instance.new("UICorner", delBtn)
                     delCorner.CornerRadius = UDim.new(0, 4)
+                    delCorner.ZIndex = 6
                     
                     delBtn.MouseButton1Click:Connect(function()
                         UI:Confirm("Delete CP" .. cpInfo.cpNum .. "?", function()
@@ -1057,7 +975,10 @@ return function(UI, Services, Config, Theme)
         end
         
         if MapContainer then
-            for _, child in ipairs(MapContainer:GetChildren()) do
+            -- Clear existing UI elements
+            local children = MapContainer:GetChildren()
+            for i = #children, 1, -1 do
+                local child = children[i]
                 if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("Frame") then
                     child:Destroy()
                 end
@@ -1072,15 +993,18 @@ return function(UI, Services, Config, Theme)
                 lbl.Font = Enum.Font.Gotham
                 lbl.TextSize = 12
                 lbl.TextWrapped = true
+                lbl.ZIndex = 5
             else
                 for _, map in ipairs(autoWalkMaps) do
                     local frame = Instance.new("Frame", MapContainer)
                     frame.Size = UDim2.new(1, -5, 0, 55)
                     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
                     frame.BackgroundTransparency = 0.1
+                    frame.ZIndex = 5
                     
                     local corner = Instance.new("UICorner", frame)
                     corner.CornerRadius = UDim.new(0, 6)
+                    corner.ZIndex = 5
                     
                     local mapNameLabel = Instance.new("TextLabel", frame)
                     mapNameLabel.Size = UDim2.new(0.7, 0, 0.5, 0)
@@ -1091,6 +1015,7 @@ return function(UI, Services, Config, Theme)
                     mapNameLabel.TextSize = 12
                     mapNameLabel.TextXAlignment = Enum.TextXAlignment.Left
                     mapNameLabel.Font = Enum.Font.GothamBold
+                    mapNameLabel.ZIndex = 6
                     
                     local cpCountLabel = Instance.new("TextLabel", frame)
                     cpCountLabel.Size = UDim2.new(0.7, 0, 0.5, 0)
@@ -1101,6 +1026,7 @@ return function(UI, Services, Config, Theme)
                     cpCountLabel.TextSize = 10
                     cpCountLabel.TextXAlignment = Enum.TextXAlignment.Left
                     cpCountLabel.Font = Enum.Font.Gotham
+                    cpCountLabel.ZIndex = 6
                     
                     local playBtn = Instance.new("TextButton", frame)
                     playBtn.Size = UDim2.new(0, 60, 0.7, 0)
@@ -1110,9 +1036,11 @@ return function(UI, Services, Config, Theme)
                     playBtn.TextColor3 = Color3.new(1, 1, 1)
                     playBtn.Font = Enum.Font.GothamBold
                     playBtn.TextSize = 11
+                    playBtn.ZIndex = 6
                     
                     local btnCorner = Instance.new("UICorner", playBtn)
                     btnCorner.CornerRadius = UDim.new(0, 4)
+                    btnCorner.ZIndex = 6
                     
                     playBtn.MouseButton1Click:Connect(function()
                         if AutoWalking then
@@ -1134,10 +1062,7 @@ return function(UI, Services, Config, Theme)
         print("[VanzyRecord] Data refreshed: " .. #checkpoints .. " CPs, " .. #autoWalkMaps .. " maps")
     end
 
-    -- ========================
-    -- CREATE AUTOWALK MAP FUNCTION
-    -- ========================
-    
+    -- // CREATE AUTOWALK MAP FUNCTION //
     local function CreateAutoWalkMap()
         local checkpoints = LoadCheckpoints()
         
@@ -1175,22 +1100,20 @@ return function(UI, Services, Config, Theme)
         
         RefreshAllData()
     end
-    
-    -- ========================
-    -- WIDGET CREATION
-    -- ========================
-    
+
+    -- // WIDGET CREATION //
     local function CreateWidget()
         WidgetGui = Instance.new("ScreenGui")
         WidgetGui.Name = "VanzyRecorderWidget"
         WidgetGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        WidgetGui.DisplayOrder = 10 -- Higher than main UI
         WidgetGui.ResetOnSpawn = false
         
         if syn and syn.protect_gui then
             syn.protect_gui(WidgetGui)
         end
         
-        WidgetGui.Parent = Services.CoreGui
+        WidgetGui.Parent = CoreGui
         
         local WidgetFrame = Instance.new("Frame", WidgetGui)
         WidgetFrame.Size = UDim2.new(0, 210, 0, 55)
@@ -1198,13 +1121,16 @@ return function(UI, Services, Config, Theme)
         WidgetFrame.BackgroundColor3 = Theme.Main
         WidgetFrame.BackgroundTransparency = 0.05
         WidgetFrame.BorderSizePixel = 0
+        WidgetFrame.ZIndex = 11
         
         local WCorner = Instance.new("UICorner", WidgetFrame)
         WCorner.CornerRadius = UDim.new(0, 8)
+        WCorner.ZIndex = 11
         
         WStroke = Instance.new("UIStroke", WidgetFrame)
         WStroke.Color = Theme.Accent
         WStroke.Thickness = 2
+        WStroke.ZIndex = 11
         
         local dragging, dragStart, startPos
         WidgetFrame.InputBegan:Connect(function(input)
@@ -1242,6 +1168,7 @@ return function(UI, Services, Config, Theme)
         StatusLabel.TextSize = 10
         StatusLabel.Font = Enum.Font.Gotham
         StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        StatusLabel.ZIndex = 12
         
         MapLabel = Instance.new("TextLabel", WidgetFrame)
         MapLabel.Size = UDim2.new(1, -10, 0, 12)
@@ -1252,6 +1179,7 @@ return function(UI, Services, Config, Theme)
         MapLabel.TextSize = 9
         MapLabel.Font = Enum.Font.Gotham
         MapLabel.TextXAlignment = Enum.TextXAlignment.Left
+        MapLabel.ZIndex = 12
         
         local function CreateMiniBtn(text, color, pos, callback)
             local btn = Instance.new("TextButton", WidgetFrame)
@@ -1262,9 +1190,11 @@ return function(UI, Services, Config, Theme)
             btn.TextColor3 = Color3.new(1, 1, 1)
             btn.Font = Enum.Font.GothamBold
             btn.TextSize = 14
+            btn.ZIndex = 12
             
             local corn = Instance.new("UICorner", btn)
             corn.CornerRadius = UDim.new(0, 6)
+            corn.ZIndex = 12
             
             btn.MouseButton1Click:Connect(callback)
             return btn
@@ -1323,11 +1253,8 @@ return function(UI, Services, Config, Theme)
         
         return WidgetGui
     end
-    
-    -- ========================
-    -- UI TAB CREATION
-    -- ========================
-    
+
+    -- // UI TAB CREATION //
     local Tab = UI:Tab("Record")
     
     Tab:Label("Floating Widget Controls")
@@ -1393,10 +1320,7 @@ return function(UI, Services, Config, Theme)
         end)
     end)
     
-    -- ========================
-    -- INITIALIZATION
-    -- ========================
-    
+    -- // INITIALIZATION //
     spawn(function()
         task.wait(1)
         CreateWidget()
@@ -1413,7 +1337,7 @@ return function(UI, Services, Config, Theme)
         
         print("[VanzyRecord] System fully initialized")
         
-        -- Auto-refresh setiap 30 detik
+        -- Auto-refresh every 30 seconds
         while true do
             task.wait(30)
             if not Recording and not Replaying and not AutoWalking then
@@ -1422,10 +1346,7 @@ return function(UI, Services, Config, Theme)
         end
     end)
     
-    -- ========================
-    -- CLEANUP
-    -- ========================
-    
+    -- // CLEANUP //
     Config.OnReset:Connect(function()
         StopRecording()
         StopReplay()
@@ -1445,7 +1366,6 @@ return function(UI, Services, Config, Theme)
         StartAutoWalk = StartAutoWalk,
         StopAutoWalk = StopAutoWalk,
         RefreshAllData = RefreshAllData,
-        CreateAutoWalkMap = CreateAutoWalkMap,
-        AutoRefreshState = AutoRefreshState
+        CreateAutoWalkMap = CreateAutoWalkMap
     }
 end
