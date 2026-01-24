@@ -1,3 +1,4 @@
+-- recording.lua (UPDATED VERSION)
 return function(UI, Services, Config, Theme)
     -- // SERVICES //
     local Players = Services.Players
@@ -42,8 +43,11 @@ return function(UI, Services, Config, Theme)
     local FileContainer = nil
     local MapContainer = nil
     local RefreshInProgress = false
-
-    -- // UTILITY FUNCTIONS //
+    
+    -- ========================
+    -- 1. UTILITY FUNCTIONS - ANTI JATUH
+    -- ========================
+    
     local function cn(num)
         return math.floor(num * 1000000) / 1000000
     end
@@ -107,8 +111,11 @@ return function(UI, Services, Config, Theme)
             t[10], t[11], t[12]
         )
     end
-
-    -- // ANTI-FALL DETECTION SYSTEM //
+    
+    -- ========================
+    -- DETEKSI JATUH & POSISI AMAN
+    -- ========================
+    
     local function IsCharacterFalling(char)
         if not char then return false end
         
@@ -116,14 +123,17 @@ return function(UI, Services, Config, Theme)
         local hrp = char:FindFirstChild("HumanoidRootPart")
         
         if hum and hrp then
+            -- Deteksi state jatuh
             if hum:GetState().Name == "Freefall" then
                 return true
             end
             
+            -- Deteksi kecepatan jatuh
             if hrp.Velocity.Y < -50 then
                 return true
             end
             
+            -- Raycast untuk deteksi ketinggian
             local ray = Ray.new(hrp.Position, Vector3.new(0, -100, 0))
             local hit, pos = workspace:FindPartOnRay(ray, char)
             
@@ -153,6 +163,7 @@ return function(UI, Services, Config, Theme)
         
         local safeIndex = GetLastSafeFrameIndex(recordData.Frames)
         if safeIndex < #recordData.Frames then
+            print("[VanzyRecord] Removing " .. (#recordData.Frames - safeIndex) .. " falling frames")
             for i = #recordData.Frames, safeIndex + 1, -1 do
                 table.remove(recordData.Frames, i)
             end
@@ -160,8 +171,11 @@ return function(UI, Services, Config, Theme)
         
         return recordData
     end
-
-    -- // CHECKPOINT POPUP SYSTEM //
+    
+    -- ========================
+    -- 2. CHECKPOINT SYSTEM + POP UP
+    -- ========================
+    
     local function ShowCheckpointPopup(cpNum, callback)
         local popupResult = {value = nil}
         
@@ -250,7 +264,10 @@ return function(UI, Services, Config, Theme)
         return popupResult
     end
 
-    -- // DATA LOADING FUNCTIONS //
+    -- ========================
+    -- DATA LOADING FUNCTIONS
+    -- ========================
+    
     local function LoadCheckpoints()
         Checkpoints = {}
         
@@ -289,7 +306,11 @@ return function(UI, Services, Config, Theme)
         print("[VanzyRecord] Loaded " .. #loadedFiles .. " checkpoints")
         return loadedFiles
     end
-
+    
+    -- ========================
+    -- 3. AUTOWALK SYSTEM
+    -- ========================
+    
     local function ScanAutoWalkMaps()
         AutoWalkMaps = {}
         
@@ -334,7 +355,180 @@ return function(UI, Services, Config, Theme)
         return AutoWalkMaps
     end
 
-    -- // RECORDING SYSTEM //
+    local function StartAutoWalk(mapData, startCp)
+        if Recording or Replaying or AutoWalking then 
+            StarterGui:SetCore("SendNotification", {
+                Title = "Cannot Start",
+                Text = "Stop current activity first",
+                Duration = 2
+            })
+            return 
+        end
+        
+        if not mapData or not mapData.checkpoints or #mapData.checkpoints == 0 then
+            StarterGui:SetCore("SendNotification", {
+                Title = "Invalid Map",
+                Text = "No checkpoints in this map",
+                Duration = 2
+            })
+            return
+        end
+        
+        AutoWalking = true
+        CurrentAutoWalkMap = mapData
+        CurrentCheckpointIndex = startCp or 1
+        
+        if StatusLabel then
+            StatusLabel.Text = "AUTO WALK"
+            StatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+        end
+        
+        if WStroke then
+            WStroke.Color = Color3.fromRGB(100, 200, 255)
+        end
+        
+        if AutoWalkBtn then
+            AutoWalkBtn.Text = "⏹"
+            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        
+        if not hrp or not hum then return end
+        
+        local controlBody = Instance.new("BodyVelocity", hrp)
+        controlBody.MaxForce = Vector3.new(40000, 40000, 40000)
+        controlBody.P = 1000
+        
+        local controlGyro = Instance.new("BodyGyro", hrp)
+        controlGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
+        controlGyro.P = 1000
+        
+        hum.AutoRotate = false
+        
+        local checkpointPositions = {}
+        
+        -- Load semua checkpoint positions
+        for i, cpInfo in ipairs(mapData.checkpoints) do
+            local success, data = pcall(function()
+                local content = readfile(cpInfo.path)
+                return HttpService:JSONDecode(content)
+            end)
+            
+            if success and data and data.Frames and #data.Frames > 0 then
+                local lastFrame = data.Frames[#data.Frames]
+                if lastFrame and lastFrame.cf then
+                    checkpointPositions[i] = DeserializeCFrame(lastFrame.cf).Position
+                end
+            end
+        end
+        
+        AutoWalkConnection = RunService.Heartbeat:Connect(function()
+            if not AutoWalking or not char or char.Parent == nil then
+                if AutoWalkConnection then
+                    AutoWalkConnection:Disconnect()
+                    AutoWalkConnection = nil
+                end
+                return
+            end
+            
+            if CurrentCheckpointIndex <= #mapData.checkpoints then
+                local targetPos = checkpointPositions[CurrentCheckpointIndex]
+                
+                if targetPos then
+                    local currentPos = hrp.Position
+                    local distance = (targetPos - currentPos).Magnitude
+                    
+                    if distance > 3 then
+                        local direction = (targetPos - currentPos).Unit
+                        controlBody.Velocity = direction * 16
+                        controlGyro.CFrame = CFrame.lookAt(currentPos, targetPos)
+                        
+                        if StatusLabel then
+                            StatusLabel.Text = "AUTO → CP" .. CurrentCheckpointIndex
+                        end
+                    else
+                        CurrentCheckpointIndex = CurrentCheckpointIndex + 1
+                        
+                        if CurrentCheckpointIndex <= #mapData.checkpoints then
+                            StarterGui:SetCore("SendNotification", {
+                                Title = "AutoWalk",
+                                Text = "Moving to CP" .. CurrentCheckpointIndex,
+                                Duration = 1
+                            })
+                        else
+                            StopAutoWalk()
+                            StarterGui:SetCore("SendNotification", {
+                                Title = "AutoWalk Complete",
+                                Text = "Reached all checkpoints",
+                                Duration = 3
+                            })
+                        end
+                    end
+                end
+            else
+                StopAutoWalk()
+            end
+        end)
+        
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoWalk Started",
+            Text = mapData.name .. " (from CP" .. (startCp or 1) .. ")",
+            Duration = 2
+        })
+    end
+
+    local function StopAutoWalk()
+        if not AutoWalking then return end
+        
+        AutoWalking = false
+        
+        if AutoWalkConnection then
+            AutoWalkConnection:Disconnect()
+            AutoWalkConnection = nil
+        end
+        
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            local controlBody = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyVelocity")
+            local controlGyro = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyGyro")
+            
+            if controlBody then controlBody:Destroy() end
+            if controlGyro then controlGyro:Destroy() end
+            
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then hum.AutoRotate = true end
+        end
+        
+        if StatusLabel then
+            StatusLabel.Text = "READY"
+            StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        
+        if WStroke then
+            WStroke.Color = Theme.Accent
+        end
+        
+        if AutoWalkBtn then
+            AutoWalkBtn.Text = "A"
+            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
+        end
+        
+        StarterGui:SetCore("SendNotification", {
+            Title = "AutoWalk Stopped",
+            Text = "Stopped at CP" .. (CurrentCheckpointIndex - 1),
+            Duration = 2
+        })
+    end
+    
+    -- ========================
+    -- 1. RECORDING SYSTEM (ANTI JATUH)
+    -- ========================
+    
     local function StartRecording()
         if Recording or Replaying or AutoWalking then 
             StarterGui:SetCore("SendNotification", {
@@ -505,6 +699,11 @@ return function(UI, Services, Config, Theme)
         if WStroke then
             WStroke.Color = Color3.fromRGB(255, 200, 50)
         end
+        
+        -- ========================
+        -- 4. AUTO REFRESH SAAT STOP RECORD
+        -- ========================
+        AutoRefreshState()
     end
 
     local function SaveCheckpoint()
@@ -552,8 +751,11 @@ return function(UI, Services, Config, Theme)
         
         CurrentRecord = {Frames = {}, Metadata = {}}
     end
-
-    -- // REPLAY SYSTEM //
+    
+    -- ========================
+    -- REPLAY SYSTEM (BERHENTI SEBELUM JATUH)
+    -- ========================
+    
     local function PlayReplay(checkpointData)
         if Recording or Replaying or AutoWalking then 
             StarterGui:SetCore("SendNotification", {
@@ -605,10 +807,28 @@ return function(UI, Services, Config, Theme)
         local replayStart = os.clock()
         local frameIndex = 1
         
+        -- HANYA memainkan frame yang aman (tidak jatuh)
+        local safeFrames = {}
+        for _, frame in ipairs(checkpointData.Frames) do
+            if frame.isSafe == nil or frame.isSafe == true then
+                table.insert(safeFrames, frame)
+            end
+        end
+        
+        if #safeFrames == 0 then
+            StarterGui:SetCore("SendNotification", {
+                Title = "No Safe Frames",
+                Text = "Cannot replay (all frames are falling)",
+                Duration = 2
+            })
+            StopReplay()
+            return
+        end
+        
         ReplayConnection = RunService.Heartbeat:Connect(function()
             if not Replaying or not LocalPlayer.Character then return end
             
-            if frameIndex > #checkpointData.Frames then
+            if frameIndex > #safeFrames then
                 Replaying = false
                 ReplayConnection:Disconnect()
                 ReplayConnection = nil
@@ -616,6 +836,12 @@ return function(UI, Services, Config, Theme)
                 controlBody:Destroy()
                 controlGyro:Destroy()
                 hum.AutoRotate = true
+                
+                -- Set posisi ke frame terakhir yang aman
+                local lastSafeFrame = safeFrames[#safeFrames]
+                if lastSafeFrame and lastSafeFrame.cf then
+                    hrp.CFrame = DeserializeCFrame(lastSafeFrame.cf)
+                end
                 
                 if StatusLabel then
                     StatusLabel.Text = "READY"
@@ -626,10 +852,16 @@ return function(UI, Services, Config, Theme)
                     WStroke.Color = Theme.Accent
                 end
                 
+                StarterGui:SetCore("SendNotification", {
+                    Title = "Replay Complete",
+                    Text = "Ended at safe position",
+                    Duration = 2
+                })
+                
                 return
             end
             
-            local frame = checkpointData.Frames[frameIndex]
+            local frame = safeFrames[frameIndex]
             if frame and frame.cf then
                 hrp.CFrame = DeserializeCFrame(frame.cf)
             end
@@ -639,7 +871,7 @@ return function(UI, Services, Config, Theme)
         
         StarterGui:SetCore("SendNotification", {
             Title = "Replay Started",
-            Text = "Playing " .. #checkpointData.Frames .. " frames",
+            Text = "Playing " .. #safeFrames .. " safe frames",
             Duration = 2
         })
     end
@@ -680,156 +912,40 @@ return function(UI, Services, Config, Theme)
             Duration = 1
         })
     end
-
-    -- // AUTOWALK SYSTEM //
-    local function StartAutoWalk(mapData, startCp)
-        if Recording or Replaying or AutoWalking then 
-            StarterGui:SetCore("SendNotification", {
-                Title = "Cannot Start",
-                Text = "Stop current activity first",
-                Duration = 2
-            })
-            return 
+    
+    -- ========================
+    -- 4. AUTO REFRESH SYSTEM
+    -- ========================
+    
+    local function AutoRefreshState()
+        print("[VanzyRecord] Auto-refreshing state...")
+        
+        -- Reset semua state yang sedang aktif
+        if Recording then
+            StopRecording()
         end
         
-        if not mapData or not mapData.checkpoints or #mapData.checkpoints == 0 then
-            StarterGui:SetCore("SendNotification", {
-                Title = "Invalid Map",
-                Text = "No checkpoints in this map",
-                Duration = 2
-            })
-            return
+        if Replaying then
+            StopReplay()
         end
         
-        AutoWalking = true
-        CurrentAutoWalkMap = mapData
-        CurrentCheckpointIndex = startCp or 1
-        
-        if StatusLabel then
-            StatusLabel.Text = "AUTO WALK"
-            StatusLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
+        if AutoWalking then
+            StopAutoWalk()
         end
         
-        if WStroke then
-            WStroke.Color = Color3.fromRGB(100, 200, 255)
-        end
+        -- Load ulang data terbaru
+        LoadCheckpoints()
         
-        if AutoWalkBtn then
-            AutoWalkBtn.Text = "⏹"
-            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-        end
-        
-        local char = LocalPlayer.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-        
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChild("Humanoid")
-        
-        if not hrp or not hum then return end
-        
-        local controlBody = Instance.new("BodyVelocity", hrp)
-        controlBody.MaxForce = Vector3.new(40000, 40000, 40000)
-        controlBody.P = 1000
-        
-        local controlGyro = Instance.new("BodyGyro", hrp)
-        controlGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
-        controlGyro.P = 1000
-        
-        hum.AutoRotate = false
-        
-        local checkpointPositions = {}
-        
-        for i, cpInfo in ipairs(mapData.checkpoints) do
-            local success, data = pcall(function()
-                local content = readfile(cpInfo.path)
-                return HttpService:JSONDecode(content)
-            end)
-            
-            if success and data and data.Frames and #data.Frames > 0 then
-                local lastFrame = data.Frames[#data.Frames]
-                if lastFrame and lastFrame.cf then
-                    checkpointPositions[i] = DeserializeCFrame(lastFrame.cf).Position
-                end
-            end
-        end
-        
-        AutoWalkConnection = RunService.Heartbeat:Connect(function()
-            if not AutoWalking or not char or char.Parent == nil then
-                if AutoWalkConnection then
-                    AutoWalkConnection:Disconnect()
-                    AutoWalkConnection = nil
-                end
-                return
-            end
-            
-            if CurrentCheckpointIndex <= #mapData.checkpoints then
-                local targetPos = checkpointPositions[CurrentCheckpointIndex]
-                
-                if targetPos then
-                    local currentPos = hrp.Position
-                    local distance = (targetPos - currentPos).Magnitude
-                    
-                    if distance > 3 then
-                        local direction = (targetPos - currentPos).Unit
-                        controlBody.Velocity = direction * 16
-                        controlGyro.CFrame = CFrame.lookAt(currentPos, targetPos)
-                        
-                        if StatusLabel then
-                            StatusLabel.Text = "AUTO → CP" .. CurrentCheckpointIndex
-                        end
-                    else
-                        CurrentCheckpointIndex = CurrentCheckpointIndex + 1
-                        
-                        if CurrentCheckpointIndex <= #mapData.checkpoints then
-                            StarterGui:SetCore("SendNotification", {
-                                Title = "AutoWalk",
-                                Text = "Moving to CP" .. CurrentCheckpointIndex,
-                                Duration = 1
-                            })
-                        else
-                            StopAutoWalk()
-                            StarterGui:SetCore("SendNotification", {
-                                Title = "AutoWalk Complete",
-                                Text = "Reached all checkpoints",
-                                Duration = 3
-                            })
-                        end
-                    end
-                end
-            else
-                StopAutoWalk()
-            end
-        end)
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "AutoWalk Started",
-            Text = mapData.name .. " (from CP" .. (startCp or 1) .. ")",
-            Duration = 2
-        })
-    end
-
-    local function StopAutoWalk()
-        if not AutoWalking then return end
-        
-        AutoWalking = false
-        
-        if AutoWalkConnection then
-            AutoWalkConnection:Disconnect()
-            AutoWalkConnection = nil
-        end
-        
+        -- Reset LastSafePosition
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
-            local controlBody = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyVelocity")
-            local controlGyro = char:FindFirstChild("HumanoidRootPart"):FindFirstChild("BodyGyro")
-            
-            if controlBody then controlBody:Destroy() end
-            if controlGyro then controlGyro:Destroy() end
-            
-            local hum = char:FindFirstChild("Humanoid")
-            if hum then hum.AutoRotate = true end
+            LastSafePosition = char:FindFirstChild("HumanoidRootPart").CFrame
         end
         
+        -- Reset CurrentRecord untuk recording berikutnya
+        CurrentRecord = {Frames = {}, Metadata = {}}
+        
+        -- Update UI status
         if StatusLabel then
             StatusLabel.Text = "READY"
             StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -839,19 +955,9 @@ return function(UI, Services, Config, Theme)
             WStroke.Color = Theme.Accent
         end
         
-        if AutoWalkBtn then
-            AutoWalkBtn.Text = "A"
-            AutoWalkBtn.BackgroundColor3 = Color3.fromRGB(100, 150, 255)
-        end
-        
-        StarterGui:SetCore("SendNotification", {
-            Title = "AutoWalk Stopped",
-            Text = "Stopped at CP" .. (CurrentCheckpointIndex - 1),
-            Duration = 2
-        })
+        print("[VanzyRecord] State auto-refreshed")
     end
 
-    -- // AUTO-REFRESH SYSTEM //
     local function RefreshAllData()
         if RefreshInProgress then return end
         
@@ -1028,7 +1134,10 @@ return function(UI, Services, Config, Theme)
         print("[VanzyRecord] Data refreshed: " .. #checkpoints .. " CPs, " .. #autoWalkMaps .. " maps")
     end
 
-    -- // CREATE AUTOWALK MAP FUNCTION //
+    -- ========================
+    -- CREATE AUTOWALK MAP FUNCTION
+    -- ========================
+    
     local function CreateAutoWalkMap()
         local checkpoints = LoadCheckpoints()
         
@@ -1066,8 +1175,11 @@ return function(UI, Services, Config, Theme)
         
         RefreshAllData()
     end
-
-    -- // WIDGET CREATION //
+    
+    -- ========================
+    -- WIDGET CREATION
+    -- ========================
+    
     local function CreateWidget()
         WidgetGui = Instance.new("ScreenGui")
         WidgetGui.Name = "VanzyRecorderWidget"
@@ -1211,8 +1323,11 @@ return function(UI, Services, Config, Theme)
         
         return WidgetGui
     end
-
-    -- // UI TAB CREATION //
+    
+    -- ========================
+    -- UI TAB CREATION
+    -- ========================
+    
     local Tab = UI:Tab("Record")
     
     Tab:Label("Floating Widget Controls")
@@ -1278,7 +1393,10 @@ return function(UI, Services, Config, Theme)
         end)
     end)
     
-    -- // INITIALIZATION //
+    -- ========================
+    -- INITIALIZATION
+    -- ========================
+    
     spawn(function()
         task.wait(1)
         CreateWidget()
@@ -1295,7 +1413,7 @@ return function(UI, Services, Config, Theme)
         
         print("[VanzyRecord] System fully initialized")
         
-        -- Auto-refresh every 30 seconds
+        -- Auto-refresh setiap 30 detik
         while true do
             task.wait(30)
             if not Recording and not Replaying and not AutoWalking then
@@ -1304,7 +1422,10 @@ return function(UI, Services, Config, Theme)
         end
     end)
     
-    -- // CLEANUP //
+    -- ========================
+    -- CLEANUP
+    -- ========================
+    
     Config.OnReset:Connect(function()
         StopRecording()
         StopReplay()
@@ -1324,6 +1445,7 @@ return function(UI, Services, Config, Theme)
         StartAutoWalk = StartAutoWalk,
         StopAutoWalk = StopAutoWalk,
         RefreshAllData = RefreshAllData,
-        CreateAutoWalkMap = CreateAutoWalkMap
+        CreateAutoWalkMap = CreateAutoWalkMap,
+        AutoRefreshState = AutoRefreshState
     }
 end
