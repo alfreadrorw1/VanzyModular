@@ -666,7 +666,7 @@ local FeatureList = {
     
     --Utilityyy
     {category = "Utility", name = "fruitFarm", url = GitHubBaseURL .. "features/Utility/fruitFarm.lua"},
-    {category = "Combat", name = "sword", url = GitHubBaseURL .. "features/Combat/sword.lua"},
+    {category = "Combat", name = "Battlegrounds", url = GitHubBaseURL .. "features/Combat/Battlegrounds.lua"},
 
     -- Recording
     {category = "Record", name = "recording", url = GitHubBaseURL .. "features/Record/recording.lua"},
