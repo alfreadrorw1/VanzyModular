@@ -662,6 +662,7 @@ local FeatureList = {
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
+    {category = "Visual", name = "crosshair", url = GitHubBaseURL .. "features/Visual/crosshair.lua"},
 
     -- Recording
     {category = "Record", name = "recording", url = GitHubBaseURL .. "features/Record/recording.lua"},
@@ -674,7 +675,7 @@ local FeatureList = {
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
     
     -- Settings Features
-    {category = "Settings", name = "theme", url = GitHubBaseURL .. "features/Settings/theme.lua"},
+    {category = "Settings", name = "jump", url = GitHubBaseURL .. "features/Settings/jump.lua"},
     {category = "Settings", name = "fpsBoost", url = GitHubBaseURL .. "features/Settings/fpsBoost.lua"}
 }
 -- Tambahkan di array FeatureList:
