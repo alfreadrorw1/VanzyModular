@@ -9,7 +9,7 @@ return function(UI, Services, Config, Theme)
     local VirtualInputManager = game:GetService("VirtualInputManager")
     local LocalPlayer = Players.LocalPlayer
     
-    local CombatTab = UI:Tab("Battlegrounds")
+    local CombatTab = UI:Tab("Combat")
     CombatTab:Label("PVP Arena Specialist")
 
     -- Config Defaults

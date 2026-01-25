@@ -1,107 +1,100 @@
--- Vanzyxxx Fast Fruit Farmer
--- Speed Up Harvest & Instant Proximity Prompt
--- Created by Alfreadrorw1
-
 return function(UI, Services, Config, Theme)
-    local Workspace = Services.Workspace
     local Players = Services.Players
-    local ProximityPromptService = game:GetService("ProximityPromptService")
     local LocalPlayer = Players.LocalPlayer
-
-    local Utility = UI:Tab("Fruit Farm")
-    UtilityTab:Label("Instant Harvest (Time Skipper)")
-
-    -- Config
-    Config.AutoHarvest = false
-    Config.InstantPrompt = false
-    Config.FarmRange = 50 -- Jarak teleport
+    local RunService = Services.RunService
+    local Workspace = Services.Workspace
     
-    -- 1. INSTANT INTERACTION (Mempercepat 'Hold E')
-    -- Ini trik "Speed Up Time" paling ampuh buat farming
-    -- Mengubah waktu tahan tombol dari 5 detik jadi 0 detik
+    local UtilityTab = UI:Tab("Utility")
     
-    local function EnableInstantPrompt()
-        spawn(function()
-            while Config.InstantPrompt do
-                for _, prompt in pairs(Workspace:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") then
-                        -- Ubah durasi tahan jadi 0 (Instan)
-                        prompt.HoldDuration = 0
-                        prompt.MaxActivationDistance = 50 -- Perjauh jarak ambil
+    UtilityTab:Label("--- PHYSICS EXPLOITS (VISIBLE) ---")
+    
+    -- 1. INVISIBLE FLING (Paling Mematikan & Visible)
+    local flingLoop = nil
+    TrollTab:Toggle("Invisible Fling (Walk near enemy)", function(state)
+        if state then
+            Services.StarterGui:SetCore("SendNotification", {Title = "Fling Active", Text = "Dekati musuh untuk lempar mereka!", Duration = 3})
+            
+            -- Sembunyikan karakter visual, tapi fisik tetap ada
+            local char = LocalPlayer.Character
+            if char then
+                for _, v in pairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then
+                        v.Transparency = 0.5 -- Biar lu masih liat diri sendiri dikit
+                        v.CanCollide = false
                     end
                 end
-                task.wait(1)
             end
-        end)
-    end
-
-    -- 2. AUTO HARVEST (Teleport ke Buah Matang)
-    -- Daripada nunggu jalan kaki, kita teleport langsung
+            
+            -- Loop putaran maut
+            flingLoop = RunService.Heartbeat:Connect(function()
+                local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if Root then
+                    local Vel = Vector3.new(99999, 99999, 99999) -- Kecepatan gila
+                    Root.Velocity = Vel
+                    Root.RotVelocity = Vel
+                    -- Pastikan lu gak jatuh ke void
+                    -- Note: Di mobile kontrolnya agak susah, pake Fly biar stabil
+                end
+            end)
+        else
+            if flingLoop then 
+                flingLoop:Disconnect() 
+                flingLoop = nil
+            end
+            local Root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if Root then
+                Root.Velocity = Vector3.new(0,0,0)
+                Root.RotVelocity = Vector3.new(0,0,0)
+            end
+        end
+    end)
     
-    local function StartAutoHarvest()
+    -- 2. HITBOX EXPANDER (Combat Curang)
+    TrollTab:Label("--- COMBAT (VISIBLE EFFECT) ---")
+    
+    TrollTab:Button("Expand Enemy Hitbox (All Enemies)", Theme.ButtonRed, function()
+        -- Ini bikin kepala musuh jadi gede banget
+        -- Lu tembak kemana aja, mereka kena. Mereka gak liat kepalanya gede (client-sided visual), 
+        -- TAPI mereka bakal mati (Server-sided effect).
+        
+        local Size = Vector3.new(5, 5, 5) -- Ukuran Hitbox
+        local Transparency = 0.7
+        
+        for _, v in ipairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+                pcall(function()
+                    v.Character.HumanoidRootPart.Size = Size
+                    v.Character.HumanoidRootPart.Transparency = Transparency
+                    v.Character.HumanoidRootPart.CanCollide = false
+                end)
+            end
+        end
+        
+        Services.StarterGui:SetCore("SendNotification", {Title = "Hitbox Expanded", Text = "Musuh sekarang gampang dipukul.", Duration = 2})
+    end)
+    
+    -- 3. LOOP KILL (Teleport Kill)
+    local killLoop = false
+    TrollTab:Toggle("Loop Kill Aura (Touch to Kill)", function(state)
+        killLoop = state
         spawn(function()
-            while Config.AutoHarvest do
-                local char = LocalPlayer.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                
-                if root then
-                    -- Cari ProximityPrompt (Tombol Ambil)
-                    for _, prompt in pairs(Workspace:GetDescendants()) do
-                        if not Config.AutoHarvest then break end
-                        
-                        if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                            local part = prompt.Parent
+            while killLoop and task.wait() do
+                pcall(function()
+                    for _, v in pairs(Players:GetPlayers()) do
+                        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
+                            local MyRoot = LocalPlayer.Character.HumanoidRootPart
+                            local EnemyRoot = v.Character.HumanoidRootPart
                             
-                            -- Pastikan itu objek fisik & bukan punya kita sendiri
-                            if part and part:IsA("BasePart") and not part:IsDescendantOf(char) then
-                                
-                                -- Cek apakah ini "Buah" atau "Tanaman" (Filter sederhana)
-                                -- Sesuaikan nama ini dengan game kamu!
-                                local name = string.lower(part.Name)
-                                local parentName = string.lower(part.Parent.Name)
-                                
-                                -- Kamu bisa tambah filter nama di sini kalau mau spesifik
-                                -- Contoh: if string.find(name, "fruit") or string.find(name, "tree") then
-                                
-                                    -- 1. Teleport ke target
-                                    root.CFrame = part.CFrame
-                                    task.wait(0.2) -- Jeda dikit biar gak ngebug
-                                    
-                                    -- 2. Paksa tekan tombol (Fire Prompt)
-                                    fireproximityprompt(prompt) 
-                                    -- Jika executor gak support fireproximityprompt, dia akan pakai cara manual (HoldDuration 0)
-                                    
-                                    task.wait(0.1)
-                                -- end
-                            end
+                            -- Teleport ke belakang musuh + Equip Tool
+                            MyRoot.CFrame = EnemyRoot.CFrame * CFrame.new(0, 0, 2)
+                            
+                            -- Auto Activate Tool (Kalo lu pegang pedang)
+                            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                            if tool then tool:Activate() end
                         end
                     end
-                end
-                task.wait(0.5)
+                end)
             end
         end)
-    end
-
-    -- UI CONTROLS
-    
-    FarmTab:Toggle("Instant Hold (0 Sec Delay)", function(state)
-        Config.InstantPrompt = state
-        if state then EnableInstantPrompt() end
     end)
-
-    FarmTab:Toggle("Teleport & Harvest All", function(state)
-        Config.AutoHarvest = state
-        if state then StartAutoHarvest() end
-    end)
-    
-    FarmTab:Label("Note: This removes the waiting time")
-    FarmTab:Label("when picking up fruits.")
-
-    -- Cleanup
-    Config.OnReset:Connect(function()
-        Config.AutoHarvest = false
-        Config.InstantPrompt = false
-    end)
-
-    print("[Vanzyxxx] Fruit Farm Loaded!")
 end
