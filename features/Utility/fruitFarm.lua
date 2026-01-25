@@ -8,8 +8,8 @@ return function(UI, Services, Config, Theme)
     local ProximityPromptService = game:GetService("ProximityPromptService")
     local LocalPlayer = Players.LocalPlayer
 
-    local FarmTab = UI:Tab("Fruit Farm")
-    FarmTab:Label("Instant Harvest (Time Skipper)")
+    local Utility = UI:Tab("Fruit Farm")
+    UtilityTab:Label("Instant Harvest (Time Skipper)")
 
     -- Config
     Config.AutoHarvest = false
