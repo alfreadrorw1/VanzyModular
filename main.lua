@@ -662,8 +662,7 @@ local FeatureList = {
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
-    {category = "Visual", name = "crosshair", url = GitHubBaseURL .. "features/Visual/crosshair.lua"},
-    
+
     --Utilityyy
     {category = "Utility", name = "fruitFarm", url = GitHubBaseURL .. "features/Utility/fruitFarm.lua"},
     {category = "Combat", name = "Battlegrounds", url = GitHubBaseURL .. "features/Combat/Battlegrounds.lua"},
