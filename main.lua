@@ -662,13 +662,6 @@ local FeatureList = {
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
-
-    --Utilityyy
-    {category = "Utility", name = "fruitFarm", url = GitHubBaseURL .. "features/Utility/fruitFarm.lua"},
-    {category = "Combat", name = "Battlegrounds", url = GitHubBaseURL .. "features/Combat/Battlegrounds.lua"},
-
-    -- Recording
-    {category = "Record", name = "recording", url = GitHubBaseURL .. "features/Record/recording.lua"},
     
     -- Aura Features
     {category = "Aura", name = "aura", url = GitHubBaseURL .. "features/Aura/aura.lua"},
