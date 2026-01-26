@@ -662,6 +662,7 @@ local FeatureList = {
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
+    {category = "Utility", name = "Jump&analog", url = GitHubBaseURL .. "features/Utility/Jump&analog.lua"},
     
     -- Aura Features
     {category = "Aura", name = "aura", url = GitHubBaseURL .. "features/Aura/aura.lua"},
