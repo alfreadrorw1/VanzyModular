@@ -1,244 +1,189 @@
--- Vanzyxxx ESP Universal V3 (Auto-Fix & Respawn Logic)
--- Fix: ESP Hilang saat musuh respawn & Kompatibel semua Executor
--- Created by Alfreadrorw1
-
+-- features/Visual/esp.lua
 return function(UI, Services, Config, Theme)
+    -- Ambil Tab "Visual" yang sudah dibuat di main.lua
+    local VisualTab = UI:Tab("Visual")
+    
+    -- Variables
     local Players = Services.Players
+    local LocalPlayer = Players.LocalPlayer
     local RunService = Services.RunService
     local CoreGui = Services.CoreGui
-    local LocalPlayer = Players.LocalPlayer
-
-    -- 1. Tab & Config Setup
-    local VisualTab = UI:Tab("Visual")
-    VisualTab:Label("ESP V3 (Auto-Fix Version)")
-
-    Config.ESP_Enabled = false
-    Config.ESP_Box = false
-    Config.ESP_Name = false
-    Config.ESP_Health = false
-    Config.ESP_TeamCheck = false
-
-    -- 2. Container (Tempat nyimpen UI biar aman)
-    local HolderName = "VanzyESP_Holder_V3"
-    local ESP_Folder = nil
-
-    -- Fungsi untuk mencari atau membuat folder aman di CoreGui
-    local function GetHolder()
-        if ESP_Folder then return ESP_Folder end
-        
-        -- Coba cari folder lama dan hapus
-        local old = CoreGui:FindFirstChild(HolderName)
-        if old then old:Destroy() end
-
-        -- Buat baru
-        local f = Instance.new("Folder")
-        f.Name = HolderName
-        
-        -- Proteksi GUI (Coba gethui dulu, kalau gak ada ya CoreGui)
-        if gethui then
-            f.Parent = gethui()
-        elseif syn and syn.protect_gui then 
-            f.Parent = CoreGui
-            syn.protect_gui(f)
-        else
-            f.Parent = CoreGui
-        end
-        
-        ESP_Folder = f
-        return f
+    
+    -- Container untuk menyimpan GUI ESP agar tidak terhapus saat reset
+    local ESPHolder = Instance.new("Folder")
+    ESPHolder.Name = "VanzyESP_Holder"
+    -- Cek jika executor support protect_gui, jika tidak taruh di CoreGui biasa
+    if syn and syn.protect_gui then 
+        syn.protect_gui(ESPHolder)
+        ESPHolder.Parent = CoreGui
+    elseif gethui then
+        ESPHolder.Parent = gethui()
+    else
+        ESPHolder.Parent = CoreGui
     end
 
-    -- 3. Fungsi Membuat ESP Unit
-    local function CreateESP(player)
-        -- Jangan pasang di diri sendiri
-        if player == LocalPlayer then return end
-
-        local holder = GetHolder()
+    -- Fungsi untuk membersihkan ESP yang invalid (pemain keluar/mati)
+    local function ClearESP(character)
+        if not character then return end
+        local espBox = character:FindFirstChild("VanzyHighlight")
+        local espTag = character:FindFirstChild("VanzyTag")
         
-        -- Hapus ESP lama player ini jika ada (Reset)
-        local old = holder:FindFirstChild(player.Name)
-        if old then old:Destroy() end
-
-        -- 1. Main Billboard (Kotak Utama)
-        local bg = Instance.new("BillboardGui")
-        bg.Name = player.Name
-        bg.Adornee = nil -- Nanti di-set di loop
-        bg.Size = UDim2.new(0, 4, 0, 5) -- Ukuran relatif (Scale)
-        bg.StudsOffset = Vector3.new(0, 0, 0)
-        bg.AlwaysOnTop = true
-        bg.Enabled = false
-        bg.Parent = holder
-
-        -- 2. Box Frame
-        local box = Instance.new("Frame", bg)
-        box.Name = "Box"
-        box.Size = UDim2.new(4, 0, 5, 0) -- Proporsional badan
-        box.Position = UDim2.new(0.5, 0, 0.5, 0)
-        box.AnchorPoint = Vector2.new(0.5, 0.5)
-        box.BackgroundTransparency = 1
-        box.BorderSizePixel = 0
-        box.Visible = false
-
-        -- Stroke (Garis Kotak)
-        local stroke = Instance.new("UIStroke", box)
-        stroke.Thickness = 1.5
-        stroke.Color = Theme.Accent
-        stroke.Transparency = 0
-
-        -- 3. Name Tag
-        local nameTag = Instance.new("TextLabel", bg)
-        nameTag.Name = "Name"
-        nameTag.Size = UDim2.new(10, 0, 1, 0)
-        nameTag.Position = UDim2.new(0.5, 0, -3, 0) -- Di atas kepala
-        nameTag.AnchorPoint = Vector2.new(0.5, 0)
-        nameTag.BackgroundTransparency = 1
-        nameTag.Text = player.DisplayName
-        nameTag.TextColor3 = Color3.new(1, 1, 1)
-        nameTag.TextStrokeTransparency = 0
-        nameTag.Font = Enum.Font.GothamBold
-        nameTag.TextSize = 12
-        nameTag.Visible = false
-
-        -- 4. Health Bar (Samping Kiri)
-        local hpBg = Instance.new("Frame", box)
-        hpBg.Name = "HP_BG"
-        hpBg.Size = UDim2.new(0.05, 0, 1, 0)
-        hpBg.Position = UDim2.new(-0.1, 0, 0, 0)
-        hpBg.BackgroundColor3 = Color3.new(0,0,0)
-        hpBg.BorderSizePixel = 0
-        hpBg.Visible = false
-
-        local hpBar = Instance.new("Frame", hpBg)
-        hpBar.Name = "HP_Bar"
-        hpBar.Size = UDim2.new(1, 0, 1, 0)
-        hpBar.Position = UDim2.new(0, 0, 1, 0)
-        hpBar.AnchorPoint = Vector2.new(0, 1) -- Tumbuh ke atas
-        hpBar.BackgroundColor3 = Color3.new(0, 1, 0)
-        hpBar.BorderSizePixel = 0
+        if espBox then espBox:Destroy() end
+        if espTag then espTag:Destroy() end
     end
 
-    -- 4. Loop Utama (Jantung Script)
-    -- Kita update setiap frame agar responsif dan mendeteksi respawn
-    local function UpdateESP()
-        local holder = GetHolder()
-        
-        -- Kalau fitur mati, sembunyikan semua
-        if not Config.ESP_Enabled then
-            for _, gui in pairs(holder:GetChildren()) do
-                if gui:IsA("BillboardGui") then gui.Enabled = false end
+    -- Fungsi Utama Pembuatan ESP
+    local function AddESP(player)
+        if player == LocalPlayer then return end -- Jangan kasih ESP ke diri sendiri
+
+        local function CharacterSetup(character)
+            -- Tunggu sampai character load sepenuhnya
+            task.wait(0.1)
+            
+            -- 1. Setup ESP Box (Menggunakan Highlight agar tembus tembok & ringan)
+            if not character:FindFirstChild("VanzyHighlight") then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "VanzyHighlight"
+                highlight.Adornee = character
+                highlight.FillTransparency = 1 -- Transparan tengahnya (jadi cuma outline)
+                highlight.OutlineTransparency = 0 -- Garis terlihat jelas
+                highlight.OutlineColor = Config.CustomColor
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Selalu terlihat menembus tembok
+                highlight.Enabled = Config.ESP_Box
+                highlight.Parent = character
             end
-            return
+
+            -- 2. Setup ESP Name & Health (Menggunakan BillboardGui)
+            if not character:FindFirstChild("VanzyTag") then
+                local head = character:WaitForChild("Head", 5)
+                if not head then return end
+
+                local bb = Instance.new("BillboardGui")
+                bb.Name = "VanzyTag"
+                bb.Adornee = head
+                bb.Size = UDim2.new(0, 100, 0, 50)
+                bb.StudsOffset = Vector3.new(0, 2, 0) -- Di atas kepala
+                bb.AlwaysOnTop = true
+                bb.Enabled = (Config.ESP_Name or Config.ESP_Health)
+                bb.Parent = character
+
+                -- Label Nama
+                local nameLabel = Instance.new("TextLabel", bb)
+                nameLabel.Name = "NameLabel"
+                nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                nameLabel.Position = UDim2.new(0, 0, 0, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.Text = player.DisplayName
+                nameLabel.TextColor3 = Color3.new(1, 1, 1)
+                nameLabel.TextStrokeTransparency = 0 -- Outline hitam teks
+                nameLabel.Font = Enum.Font.GothamBold
+                nameLabel.TextSize = 12
+                nameLabel.Visible = Config.ESP_Name
+
+                -- Label Darah
+                local healthLabel = Instance.new("TextLabel", bb)
+                healthLabel.Name = "HealthLabel"
+                healthLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                healthLabel.Position = UDim2.new(0, 0, 0.5, 0)
+                healthLabel.BackgroundTransparency = 1
+                healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                healthLabel.TextStrokeTransparency = 0
+                healthLabel.Font = Enum.Font.Gotham
+                healthLabel.TextSize = 10
+                healthLabel.Visible = Config.ESP_Health
+                
+                -- Update Text Darah secara realtime
+                local hum = character:FindFirstChild("Humanoid")
+                if hum then
+                    hum.HealthChanged:Connect(function()
+                        healthLabel.Text = "HP: " .. math.floor(hum.Health)
+                        -- Ubah warna text jika darah sekarat
+                        if hum.Health < 30 then
+                            healthLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                        else
+                            healthLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        end
+                    end)
+                    healthLabel.Text = "HP: " .. math.floor(hum.Health) -- Set awal
+                end
+            end
         end
 
+        -- Jika player sudah punya karakter saat script dijalankan
+        if player.Character then
+            CharacterSetup(player.Character)
+        end
+
+        -- Jika player respawn (mati lalu hidup lagi)
+        player.CharacterAdded:Connect(CharacterSetup)
+    end
+
+    -- Loop Update (Untuk menyalakan/mematikan visibilitas berdasarkan Config)
+    -- Kita pakai loop ringan agar tidak membebani HP
+    RunService.RenderStepped:Connect(function()
         for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local gui = holder:FindFirstChild(player.Name)
-
-                -- Jika GUI belum ada, buat baru
-                if not gui then
-                    CreateESP(player)
-                    gui = holder:FindFirstChild(player.Name)
+            if player ~= LocalPlayer and player.Character then
+                local char = player.Character
+                
+                -- Update Box (Highlight)
+                local hl = char:FindFirstChild("VanzyHighlight")
+                if hl then
+                    hl.Enabled = Config.ESP_Box
+                    hl.OutlineColor = Config.CustomColor -- Sinkron dengan tema menu
+                elseif Config.ESP_Box then
+                    -- Jika highlight hilang tapi fitur nyala, buat ulang
+                    AddESP(player)
                 end
 
-                if gui then
-                    local char = player.Character
-                    local hum = char and char:FindFirstChild("Humanoid")
-                    local root = char and char:FindFirstChild("HumanoidRootPart")
-
-                    -- Cek Validitas: Karakter ada & Hidup
-                    if char and hum and root and hum.Health > 0 then
-                        
-                        -- TEAM CHECK
-                        local isTeammate = (player.Team ~= nil and player.Team == LocalPlayer.Team)
-                        if Config.ESP_TeamCheck and isTeammate then
-                            gui.Enabled = false
-                            continue -- Skip ke player berikutnya
-                        end
-
-                        -- AKTIFKAN ESP
-                        gui.Adornee = root -- Tempelkan ke root part terbaru
-                        gui.Enabled = true
-
-                        -- Ambil komponen
-                        local box = gui:FindFirstChild("Box")
-                        local nameTag = gui:FindFirstChild("Name")
-                        local hpBg = box and box:FindFirstChild("HP_BG")
-                        local stroke = box and box:FindFirstChild("UIStroke")
-
-                        -- UPDATE WARNA (Musuh vs Teman)
-                        local color = isTeammate and Color3.fromRGB(0, 255, 0) or Theme.Accent
-                        if stroke then stroke.Color = color end
-                        if nameTag then nameTag.TextColor3 = color end
-
-                        -- 1. BOX
-                        if box then box.Visible = Config.ESP_Box end
-
-                        -- 2. NAME & DISTANCE
-                        if nameTag then 
-                            nameTag.Visible = Config.ESP_Name 
-                            if Config.ESP_Name then
-                                local dist = math.floor((root.Position - Services.Workspace.CurrentCamera.CFrame.Position).Magnitude)
-                                nameTag.Text = string.format("%s\n[%d m]", player.DisplayName, dist)
-                            end
-                        end
-
-                        -- 3. HEALTH BAR
-                        if hpBg then 
-                            hpBg.Visible = Config.ESP_Health
-                            local hpBar = hpBg:FindFirstChild("HP_Bar")
-                            if hpBar then
-                                local percent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                                hpBar.Size = UDim2.new(1, 0, percent, 0)
-                                hpBar.BackgroundColor3 = Color3.fromHSV(percent * 0.3, 1, 1) -- Merah ke Hijau
-                            end
-                        end
-
-                    else
-                        -- Kalau mati/tidak ada karakter, sembunyikan
-                        gui.Enabled = false
-                        gui.Adornee = nil
-                    end
+                -- Update Name & Health
+                local tag = char:FindFirstChild("VanzyTag")
+                if tag then
+                    tag.Enabled = (Config.ESP_Name or Config.ESP_Health)
+                    
+                    local nameLbl = tag:FindFirstChild("NameLabel")
+                    if nameLbl then nameLbl.Visible = Config.ESP_Name end
+                    
+                    local hpLbl = tag:FindFirstChild("HealthLabel")
+                    if hpLbl then hpLbl.Visible = Config.ESP_Health end
+                elseif (Config.ESP_Name or Config.ESP_Health) then
+                    AddESP(player)
                 end
             end
         end
+    end)
+
+    -- Event Listener untuk Player Baru Masuk
+    Players.PlayerAdded:Connect(function(player)
+        AddESP(player)
+    end)
+
+    -- Inisialisasi awal untuk semua player yang sudah ada di game
+    for _, player in pairs(Players:GetPlayers()) do
+        AddESP(player)
     end
 
-    -- 5. UI Controls
-    VisualTab:Toggle("Enable ESP (Master)", function(state)
-        Config.ESP_Enabled = state
-        if not state then
-            -- Force hide saat dimatikan
-            local holder = GetHolder()
-            for _, gui in pairs(holder:GetChildren()) do gui.Enabled = false end
+    -- UI CONTROLS (Toggles di Menu)
+    VisualTab:Label("ESP Visuals")
+
+    VisualTab:Toggle("ESP Box (Wallhack)", function(state)
+        Config.ESP_Box = state
+    end)
+
+    VisualTab:Toggle("ESP Name", function(state)
+        Config.ESP_Name = state
+    end)
+
+    VisualTab:Toggle("ESP Health", function(state)
+        Config.ESP_Health = state
+    end)
+    
+    VisualTab:Label("Settings")
+    -- Slider untuk mengatur ketebalan atau transparansi bisa ditambahkan disini
+    -- Contoh simple info
+    VisualTab:Button("Refresh ESP", Theme.Button, function()
+        for _, p in pairs(Players:GetPlayers()) do
+            ClearESP(p.Character)
+            AddESP(p)
         end
     end)
-
-    VisualTab:Toggle("Show Box", function(state) Config.ESP_Box = state end)
-    VisualTab:Toggle("Show Name", function(state) Config.ESP_Name = state end)
-    VisualTab:Toggle("Show Health", function(state) Config.ESP_Health = state end)
-    VisualTab:Toggle("Team Check", function(state) Config.ESP_TeamCheck = state end)
-
-    -- 6. Event Connections
-    local RenderConn = RunService.RenderStepped:Connect(UpdateESP)
-    
-    -- Auto-Refresh saat player baru masuk
-    local AddConn = Players.PlayerAdded:Connect(function(p)
-        task.wait(1)
-        CreateESP(p)
-    end)
-    
-    -- Bersihkan saat player keluar
-    local RemConn = Players.PlayerRemoving:Connect(function(p)
-        local holder = GetHolder()
-        local gui = holder:FindFirstChild(p.Name)
-        if gui then gui:Destroy() end
-    end)
-
-    -- Cleanup saat script reset (Tombol X)
-    Config.OnReset:Connect(function()
-        if RenderConn then RenderConn:Disconnect() end
-        if AddConn then AddConn:Disconnect() end
-        if RemConn then RemConn:Disconnect() end
-        if ESP_Folder then ESP_Folder:Destroy() end
-
-
+end
