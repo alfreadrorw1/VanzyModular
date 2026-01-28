@@ -174,7 +174,7 @@ return function(UI, Services, Config, Theme)
     -- >>> UI SETUP <<<
     
     -- Tombol Load GitHub
-    AuraTab:Button("📥 LOAD LIST FROM GITHUB", Theme.Button, LoadGitHubData)
+    AuraTab:Button("Resfresh", Theme.Button, LoadGitHubData)
     
     -- Container List
     AuraContainer = AuraTab:Container(250) -- Tinggi container

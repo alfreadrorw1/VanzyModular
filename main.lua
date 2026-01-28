@@ -674,6 +674,7 @@ local FeatureList = {
     -- Settings Features
     {category = "Settings", name = "jump", url = GitHubBaseURL .. "features/Settings/jump.lua"},
     {category = "Settings", name = "fpsBoost", url = GitHubBaseURL .. "features/Settings/fpsBoost.lua"}
+    {category = "Settings", name = "teleportPlayers", url = GitHubBaseURL .. "features/Settings/teleportPlayers.lua"},
 }
 -- Tambahkan di array FeatureList:
 

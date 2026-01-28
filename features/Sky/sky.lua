@@ -156,7 +156,7 @@ return function(UI, Services, Config, Theme)
     -- >>> UI SETUP <<<
     
     -- Tombol Load GitHub
-    SkyTab:Button("📥 LOAD LIST FROM GITHUB", Theme.Button, LoadGitHubData)
+    SkyTab:Button("Resfresh", Theme.Button, LoadGitHubData)
     
     -- Container List
     SkyContainer = SkyTab:Container(250)

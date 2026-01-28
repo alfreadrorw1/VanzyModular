@@ -67,7 +67,7 @@ return function(UI, Services, Config, Theme)
             lastUpdate = lastUpdate + deltaTime
             if lastUpdate >= 0.5 then -- Update setiap 0.5 detik biar ga spam
                 local fps = math.floor(1 / deltaTime)
-                label.Text = "FPS: " .. fps
+                label.Text = "fps: " .. fps
                 
                 -- Warna dinamis berdasarkan performa
                 if fps >= 50 then
