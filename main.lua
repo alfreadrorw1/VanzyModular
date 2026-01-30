@@ -670,6 +670,10 @@ local FeatureList = {
     
     -- Checkpoint Features
     {category = "Checkpoint", name = "saveLoadCP", url = GitHubBaseURL .. "features/Checkpoint/saveLoadCP.lua"},
+   -- Tambahkan ini ke dalam tabel FeatureList di main.lua
+
+    -- Visual & Cosmetics (Sayap, Aura, Glowstick, dll)
+    {category = "Cosmetics", name = "visualCosmetics", url = GitHubBaseURL .. "features/Visual/visualCosmetics.lua"},
     
     -- Settings Features
     {category = "Settings", name = "jump", url = GitHubBaseURL .. "features/Settings/jump.lua"},
