@@ -5,6 +5,7 @@ return function(UI, Services, Config, Theme)
     local LocalPlayer = Services.Players.LocalPlayer
     local RunService = Services.RunService
     local UserInputService = Services.UserInputService
+    local TweenService = Services.TweenService
     
     -- Create Tab
     local RecordTab = UI:Tab("Record & Replay")
@@ -25,40 +26,45 @@ return function(UI, Services, Config, Theme)
     local SavedData = {}   -- Data tersimpan
     
     -- ============================================
-    -- 1️⃣ UI MINI DRAGGABLE
+    -- 1️⃣ UI MINI DRAGGABLE - VERSION FIXED
     -- ============================================
     local function CreateRecordWidget()
         local screenGui = UI:GetScreenGui()
         if not screenGui then return end
         
-        -- Main Widget Frame
+        -- Main Widget Frame (sedikit lebih besar untuk button horizontal)
         local Widget = Instance.new("Frame", screenGui)
         Widget.Name = "RecordWidget"
-        Widget.Size = UDim2.new(0, 200, 0, 210)
-        Widget.Position = UDim2.new(0.5, -100, 0.8, 0)
+        Widget.Size = UDim2.new(0, 280, 0, 140)
+        Widget.Position = UDim2.new(0.5, -140, 0.8, 0)
         Widget.BackgroundColor3 = Theme.Sidebar
+        Widget.BackgroundTransparency = 0.2
         Widget.Visible = false
         Widget.ZIndex = 50
         
         local Corner = Instance.new("UICorner", Widget)
-        Corner.CornerRadius = UDim.new(0, 8)
+        Corner.CornerRadius = UDim.new(0, 12)
         
         local Stroke = Instance.new("UIStroke", Widget)
         Stroke.Color = Theme.Accent
         Stroke.Thickness = 2
         
-        -- Drag Handler
-        local DragBtn = Instance.new("TextButton", Widget)
-        DragBtn.Size = UDim2.new(1, 0, 0, 25)
-        DragBtn.BackgroundColor3 = Theme.Button
-        DragBtn.Text = "≡ Drag"
-        DragBtn.TextColor3 = Theme.Text
-        DragBtn.Font = Enum.Font.GothamBold
-        DragBtn.TextSize = 10
-        DragBtn.ZIndex = 51
+        -- Title Bar dengan Drag
+        local TitleBar = Instance.new("Frame", Widget)
+        TitleBar.Size = UDim2.new(1, 0, 0, 30)
+        TitleBar.BackgroundColor3 = Theme.Accent
+        TitleBar.BackgroundTransparency = 0.3
         
-        local Corner2 = Instance.new("UICorner", DragBtn)
-        Corner2.CornerRadius = UDim.new(0, 6)
+        local TitleCorner = Instance.new("UICorner", TitleBar)
+        TitleCorner.CornerRadius = UDim.new(0, 12, 0, 0)
+        
+        local TitleLabel = Instance.new("TextLabel", TitleBar)
+        TitleLabel.Size = UDim2.new(1, 0, 1, 0)
+        TitleLabel.BackgroundTransparency = 1
+        TitleLabel.Text = "🎥 RECORD CONTROLLER"
+        TitleLabel.TextColor3 = Theme.Text
+        TitleLabel.Font = Enum.Font.GothamBold
+        TitleLabel.TextSize = 12
         
         -- Drag Function
         local function Drag(frame, handle)
@@ -94,115 +100,198 @@ return function(UI, Services, Config, Theme)
             end)
         end
         
-        Drag(Widget, DragBtn)
+        Drag(Widget, TitleBar)
         
-        -- Status Label
-        local StatusLabel = Instance.new("TextLabel", Widget)
-        StatusLabel.Size = UDim2.new(1, -10, 0, 20)
-        StatusLabel.Position = UDim2.new(0, 5, 0, 30)
+        -- Status Display
+        local StatusContainer = Instance.new("Frame", Widget)
+        StatusContainer.Size = UDim2.new(1, -20, 0, 25)
+        StatusContainer.Position = UDim2.new(0, 10, 0, 35)
+        StatusContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        StatusContainer.BackgroundTransparency = 0.5
+        
+        local StatusCorner = Instance.new("UICorner", StatusContainer)
+        StatusCorner.CornerRadius = UDim.new(0, 6)
+        
+        local StatusLabel = Instance.new("TextLabel", StatusContainer)
+        StatusLabel.Size = UDim2.new(1, 0, 1, 0)
         StatusLabel.BackgroundTransparency = 1
-        StatusLabel.Text = "Status: IDLE"
-        StatusLabel.TextColor3 = Theme.Text
-        StatusLabel.Font = Enum.Font.Gotham
+        StatusLabel.Text = "🟢 IDLE"
+        StatusLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+        StatusLabel.Font = Enum.Font.GothamBold
         StatusLabel.TextSize = 11
+        StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+        StatusLabel.PaddingLeft = UDim.new(0, 8)
         
-        -- Map Selection
-        local MapLabel = Instance.new("TextLabel", Widget)
-        MapLabel.Size = UDim2.new(1, -10, 0, 15)
-        MapLabel.Position = UDim2.new(0, 5, 0, 55)
+        -- Map & CP Input Row
+        local InputRow = Instance.new("Frame", Widget)
+        InputRow.Size = UDim2.new(1, -20, 0, 30)
+        InputRow.Position = UDim2.new(0, 10, 0, 65)
+        InputRow.BackgroundTransparency = 1
+        
+        -- Map Input
+        local MapFrame = Instance.new("Frame", InputRow)
+        MapFrame.Size = UDim2.new(0.48, 0, 1, 0)
+        MapFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        
+        local MapCorner = Instance.new("UICorner", MapFrame)
+        MapCorner.CornerRadius = UDim.new(0, 4)
+        
+        local MapLabel = Instance.new("TextLabel", MapFrame)
+        MapLabel.Size = UDim2.new(0.3, 0, 1, 0)
         MapLabel.BackgroundTransparency = 1
-        MapLabel.Text = "Map:"
-        MapLabel.TextColor3 = Theme.Text
-        MapLabel.Font = Enum.Font.Gotham
+        MapLabel.Text = "MAP:"
+        MapLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        MapLabel.Font = Enum.Font.GothamBold
         MapLabel.TextSize = 10
         
-        local MapInput = Instance.new("TextBox", Widget)
-        MapInput.Size = UDim2.new(1, -10, 0, 20)
-        MapInput.Position = UDim2.new(0, 5, 0, 70)
-        MapInput.BackgroundColor3 = Theme.Button
+        local MapInput = Instance.new("TextBox", MapFrame)
+        MapInput.Size = UDim2.new(0.65, 0, 1, 0)
+        MapInput.Position = UDim2.new(0.35, 0, 0, 0)
+        MapInput.BackgroundTransparency = 1
         MapInput.TextColor3 = Theme.Text
         MapInput.Font = Enum.Font.Gotham
         MapInput.TextSize = 11
-        MapInput.PlaceholderText = "Enter map name..."
+        MapInput.PlaceholderText = "Map Name"
+        MapInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
         
-        local MapCorner = Instance.new("UICorner", MapInput)
-        MapCorner.CornerRadius = UDim.new(0, 4)
+        -- CP Input
+        local CPFrame = Instance.new("Frame", InputRow)
+        CPFrame.Size = UDim2.new(0.48, 0, 1, 0)
+        CPFrame.Position = UDim2.new(0.52, 0, 0, 0)
+        CPFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
         
-        -- CP Selection
-        local CPLabel = Instance.new("TextLabel", Widget)
-        CPLabel.Size = UDim2.new(1, -10, 0, 15)
-        CPLabel.Position = UDim2.new(0, 5, 0, 95)
+        local CPCorner = Instance.new("UICorner", CPFrame)
+        CPCorner.CornerRadius = UDim.new(0, 4)
+        
+        local CPLabel = Instance.new("TextLabel", CPFrame)
+        CPLabel.Size = UDim2.new(0.3, 0, 1, 0)
         CPLabel.BackgroundTransparency = 1
-        CPLabel.Text = "Checkpoint:"
-        CPLabel.TextColor3 = Theme.Text
-        CPLabel.Font = Enum.Font.Gotham
+        CPLabel.Text = "CP:"
+        CPLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        CPLabel.Font = Enum.Font.GothamBold
         CPLabel.TextSize = 10
         
-        local CPInput = Instance.new("TextBox", Widget)
-        CPInput.Size = UDim2.new(1, -10, 0, 20)
-        CPInput.Position = UDim2.new(0, 5, 0, 110)
-        CPInput.BackgroundColor3 = Theme.Button
+        local CPInput = Instance.new("TextBox", CPFrame)
+        CPInput.Size = UDim2.new(0.65, 0, 1, 0)
+        CPInput.Position = UDim2.new(0.35, 0, 0, 0)
+        CPInput.BackgroundTransparency = 1
         CPInput.Text = "CP1"
         CPInput.TextColor3 = Theme.Text
         CPInput.Font = Enum.Font.Gotham
         CPInput.TextSize = 11
         
-        local CPCorner = Instance.new("UICorner", CPInput)
-        CPCorner.CornerRadius = UDim.new(0, 4)
-        
-        -- Button Container
+        -- BUTTON CONTAINER (HORIZONTAL LAYOUT)
         local ButtonContainer = Instance.new("Frame", Widget)
-        ButtonContainer.Size = UDim2.new(1, -10, 0, 60)
-        ButtonContainer.Position = UDim2.new(0, 5, 0, 140)
+        ButtonContainer.Size = UDim2.new(1, -20, 0, 40)
+        ButtonContainer.Position = UDim2.new(0, 10, 0, 100)
         ButtonContainer.BackgroundTransparency = 1
         
-        -- Control Buttons
-        local BtnRecord = Instance.new("TextButton", ButtonContainer)
-        BtnRecord.Size = UDim2.new(0.48, 0, 0, 25)
+        -- First Row of Buttons (Record, Play, Pause)
+        local ButtonRow1 = Instance.new("Frame", ButtonContainer)
+        ButtonRow1.Size = UDim2.new(1, 0, 0.5, 0)
+        ButtonRow1.BackgroundTransparency = 1
+        
+        -- Record Button
+        local BtnRecord = Instance.new("TextButton", ButtonRow1)
+        BtnRecord.Size = UDim2.new(0.32, 0, 1, -2)
         BtnRecord.Position = UDim2.new(0, 0, 0, 0)
-        BtnRecord.BackgroundColor3 = Theme.ButtonRed
+        BtnRecord.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
         BtnRecord.Text = "⏺ RECORD"
-        BtnRecord.TextColor3 = Theme.Text
+        BtnRecord.TextColor3 = Color3.new(1, 1, 1)
         BtnRecord.Font = Enum.Font.GothamBold
         BtnRecord.TextSize = 10
+        BtnRecord.ZIndex = 51
         
-        local BtnPlay = Instance.new("TextButton", ButtonContainer)
-        BtnPlay.Size = UDim2.new(0.48, 0, 0, 25)
-        BtnPlay.Position = UDim2.new(0.52, 0, 0, 0)
-        BtnPlay.BackgroundColor3 = Theme.Confirm
+        local RecordCorner = Instance.new("UICorner", BtnRecord)
+        RecordCorner.CornerRadius = UDim.new(0, 6)
+        
+        -- Play Button
+        local BtnPlay = Instance.new("TextButton", ButtonRow1)
+        BtnPlay.Size = UDim2.new(0.32, 0, 1, -2)
+        BtnPlay.Position = UDim2.new(0.34, 0, 0, 0)
+        BtnPlay.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
         BtnPlay.Text = "▶ PLAY"
-        BtnPlay.TextColor3 = Theme.Text
+        BtnPlay.TextColor3 = Color3.new(1, 1, 1)
         BtnPlay.Font = Enum.Font.GothamBold
         BtnPlay.TextSize = 10
+        BtnPlay.ZIndex = 51
         
-        local BtnPause = Instance.new("TextButton", ButtonContainer)
-        BtnPause.Size = UDim2.new(0.48, 0, 0, 25)
-        BtnPause.Position = UDim2.new(0, 0, 0, 30)
+        local PlayCorner = Instance.new("UICorner", BtnPlay)
+        PlayCorner.CornerRadius = UDim.new(0, 6)
+        
+        -- Pause Button
+        local BtnPause = Instance.new("TextButton", ButtonRow1)
+        BtnPause.Size = UDim2.new(0.32, 0, 1, -2)
+        BtnPause.Position = UDim2.new(0.68, 0, 0, 0)
         BtnPause.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
         BtnPause.Text = "⏸ PAUSE"
-        BtnPause.TextColor3 = Theme.Text
+        BtnPause.TextColor3 = Color3.new(1, 1, 1)
         BtnPause.Font = Enum.Font.GothamBold
         BtnPause.TextSize = 10
+        BtnPause.ZIndex = 51
         
-        local BtnSave = Instance.new("TextButton", ButtonContainer)
-        BtnSave.Size = UDim2.new(0.48, 0, 0, 25)
-        BtnSave.Position = UDim2.new(0.52, 0, 0, 30)
+        local PauseCorner = Instance.new("UICorner", BtnPause)
+        PauseCorner.CornerRadius = UDim.new(0, 6)
+        
+        -- Second Row of Buttons (Stop, Replay, Save)
+        local ButtonRow2 = Instance.new("Frame", ButtonContainer)
+        ButtonRow2.Size = UDim2.new(1, 0, 0.5, 0)
+        ButtonRow2.Position = UDim2.new(0, 0, 0.5, 0)
+        ButtonRow2.BackgroundTransparency = 1
+        
+        -- Stop Button
+        local BtnStop = Instance.new("TextButton", ButtonRow2)
+        BtnStop.Size = UDim2.new(0.32, 0, 1, -2)
+        BtnStop.Position = UDim2.new(0, 0, 0, 0)
+        BtnStop.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+        BtnStop.Text = "⏹ STOP"
+        BtnStop.TextColor3 = Color3.new(1, 1, 1)
+        BtnStop.Font = Enum.Font.GothamBold
+        BtnStop.TextSize = 10
+        BtnStop.ZIndex = 51
+        
+        local StopCorner = Instance.new("UICorner", BtnStop)
+        StopCorner.CornerRadius = UDim.new(0, 6)
+        
+        -- Replay Button
+        local BtnReplay = Instance.new("TextButton", ButtonRow2)
+        BtnReplay.Size = UDim2.new(0.32, 0, 1, -2)
+        BtnReplay.Position = UDim2.new(0.34, 0, 0, 0)
+        BtnReplay.BackgroundColor3 = Color3.fromRGB(90, 120, 220)
+        BtnReplay.Text = "↺ REPLAY"
+        BtnReplay.TextColor3 = Color3.new(1, 1, 1)
+        BtnReplay.Font = Enum.Font.GothamBold
+        BtnReplay.TextSize = 10
+        BtnReplay.ZIndex = 51
+        
+        local ReplayCorner = Instance.new("UICorner", BtnReplay)
+        ReplayCorner.CornerRadius = UDim.new(0, 6)
+        
+        -- Save Button
+        local BtnSave = Instance.new("TextButton", ButtonRow2)
+        BtnSave.Size = UDim2.new(0.32, 0, 1, -2)
+        BtnSave.Position = UDim2.new(0.68, 0, 0, 0)
         BtnSave.BackgroundColor3 = Theme.Accent
         BtnSave.Text = "💾 SAVE"
-        BtnSave.TextColor3 = Theme.Text
+        BtnSave.TextColor3 = Color3.new(1, 1, 1)
         BtnSave.Font = Enum.Font.GothamBold
         BtnSave.TextSize = 10
+        BtnSave.ZIndex = 51
         
-        -- Add corners to all buttons
-        for _, btn in pairs({BtnRecord, BtnPlay, BtnPause, BtnSave}) do
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-        end
+        local SaveCorner = Instance.new("UICorner", BtnSave)
+        SaveCorner.CornerRadius = UDim.new(0, 6)
         
         -- Store references
         RecordWidgetFrame = Widget
         
+        -- Function untuk update status
+        local function UpdateStatus(text, color)
+            StatusLabel.Text = text
+            StatusLabel.TextColor3 = color or Color3.fromRGB(200, 255, 200)
+        end
+        
         -- ============================================
-        -- BUTTON EVENTS
+        -- BUTTON EVENTS - IMPROVED
         -- ============================================
         
         -- RECORD Button
@@ -225,15 +314,15 @@ return function(UI, Services, Config, Theme)
                 end
                 
                 BtnRecord.Text = "⏹ STOP"
-                BtnRecord.BackgroundColor3 = Theme.Button
-                StatusLabel.Text = "Status: RECORDING " .. CurrentCP
+                BtnRecord.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+                UpdateStatus("🔴 RECORDING " .. CurrentCP, Color3.fromRGB(255, 100, 100))
                 
                 StartRecording()
             else
                 -- Stop Recording
                 BtnRecord.Text = "⏺ RECORD"
-                BtnRecord.BackgroundColor3 = Theme.ButtonRed
-                StatusLabel.Text = "Status: IDLE"
+                BtnRecord.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+                UpdateStatus("🟢 IDLE", Color3.fromRGB(200, 255, 200))
                 
                 StopRecording()
             end
@@ -241,56 +330,151 @@ return function(UI, Services, Config, Theme)
         
         -- PLAY Button
         BtnPlay.MouseButton1Click:Connect(function()
-            if IsPlaying then
-                -- Stop playing
-                BtnPlay.Text = "▶ PLAY"
-                BtnPlay.BackgroundColor3 = Theme.Confirm
-                StatusLabel.Text = "Status: IDLE"
-                
-                StopReplay()
+            if IsPlaying and not IsPaused then
+                -- Already playing, pause it
+                IsPaused = true
+                BtnPlay.Text = "▶ RESUME"
+                BtnPlay.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+                UpdateStatus("⏸ PAUSED", Color3.fromRGB(255, 200, 100))
             else
-                -- Start playing
-                CurrentMap = MapInput.Text
-                CurrentCP = CPInput.Text
-                
-                if CurrentMap == "" then
-                    Services.StarterGui:SetCore("SendNotification", {
-                        Title = "Error",
-                        Text = "Enter map name first!",
-                        Duration = 3
-                    })
-                    return
+                -- Start or resume playing
+                if not IsPlaying then
+                    CurrentMap = MapInput.Text
+                    CurrentCP = CPInput.Text
+                    
+                    if CurrentMap == "" then
+                        Services.StarterGui:SetCore("SendNotification", {
+                            Title = "Error",
+                            Text = "Enter map name first!",
+                            Duration = 3
+                        })
+                        return
+                    end
+                    
+                    IsPlaying = true
                 end
                 
-                BtnPlay.Text = "⏹ STOP"
-                BtnPlay.BackgroundColor3 = Theme.Button
-                StatusLabel.Text = "Status: PLAYING " .. CurrentCP
+                IsPaused = false
+                BtnPlay.Text = "⏸ PAUSE"
+                BtnPlay.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+                UpdateStatus("▶ PLAYING " .. CurrentCP, Color3.fromRGB(100, 255, 100))
                 
-                PlayReplay()
+                if IsPlaying then
+                    PlayReplay()
+                end
             end
         end)
         
-        -- PAUSE Button
+        -- PAUSE Button (alternative to Play's pause)
         BtnPause.MouseButton1Click:Connect(function()
             if IsPlaying then
                 IsPaused = not IsPaused
                 
                 if IsPaused then
-                    BtnPause.Text = "⏯ RESUME"
-                    BtnPause.BackgroundColor3 = Theme.Confirm
-                    StatusLabel.Text = "Status: PAUSED"
+                    BtnPause.Text = "▶ RESUME"
+                    BtnPause.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+                    UpdateStatus("⏸ PAUSED", Color3.fromRGB(255, 200, 100))
                 else
                     BtnPause.Text = "⏸ PAUSE"
                     BtnPause.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
-                    StatusLabel.Text = "Status: PLAYING " .. CurrentCP
+                    UpdateStatus("▶ PLAYING " .. CurrentCP, Color3.fromRGB(100, 255, 100))
                 end
             end
+        end)
+        
+        -- STOP Button
+        BtnStop.MouseButton1Click:Connect(function()
+            if IsPlaying or IsRecording then
+                IsPlaying = false
+                IsRecording = false
+                IsPaused = false
+                
+                -- Reset all buttons
+                BtnRecord.Text = "⏺ RECORD"
+                BtnRecord.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+                
+                BtnPlay.Text = "▶ PLAY"
+                BtnPlay.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
+                
+                BtnPause.Text = "⏸ PAUSE"
+                BtnPause.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+                
+                UpdateStatus("🟢 IDLE", Color3.fromRGB(200, 255, 200))
+                
+                StopReplay()
+                StopRecording()
+                
+                Services.StarterGui:SetCore("SendNotification", {
+                    Title = "Stopped",
+                    Text = "All actions stopped",
+                    Duration = 2
+                })
+            end
+        end)
+        
+        -- REPLAY Button (restart from beginning)
+        BtnReplay.MouseButton1Click:Connect(function()
+            if IsPlaying then
+                StopReplay()
+                task.wait(0.1)
+            end
+            
+            CurrentMap = MapInput.Text
+            CurrentCP = CPInput.Text
+            
+            if CurrentMap == "" then
+                Services.StarterGui:SetCore("SendNotification", {
+                    Title = "Error",
+                    Text = "Enter map name first!",
+                    Duration = 3
+                })
+                return
+            end
+            
+            IsPlaying = true
+            IsPaused = false
+            
+            BtnPlay.Text = "⏸ PAUSE"
+            BtnPlay.BackgroundColor3 = Color3.fromRGB(255, 170, 0)
+            UpdateStatus("↺ REPLAYING " .. CurrentCP, Color3.fromRGB(100, 200, 255))
+            
+            PlayReplay()
         end)
         
         -- SAVE Button
         BtnSave.MouseButton1Click:Connect(function()
             SaveCurrentRecord()
         end)
+        
+        -- Hover effects untuk semua button
+        local function AddHoverEffect(button, normalColor, hoverColor)
+            local originalSize = button.Size
+            local hoverTween
+            
+            button.MouseEnter:Connect(function()
+                button.BackgroundColor3 = hoverColor
+                hoverTween = TweenService:Create(button, TweenInfo.new(0.1), {Size = originalSize + UDim2.new(0, 2, 0, 2)})
+                hoverTween:Play()
+            end)
+            
+            button.MouseLeave:Connect(function()
+                button.BackgroundColor3 = normalColor
+                if hoverTween then hoverTween:Cancel() end
+                button.Size = originalSize
+            end)
+        end
+        
+        -- Apply hover effects
+        AddHoverEffect(BtnRecord, Color3.fromRGB(220, 60, 60), Color3.fromRGB(240, 80, 80))
+        AddHoverEffect(BtnPlay, Color3.fromRGB(60, 180, 60), Color3.fromRGB(80, 200, 80))
+        AddHoverEffect(BtnPause, Color3.fromRGB(255, 170, 0), Color3.fromRGB(255, 190, 30))
+        AddHoverEffect(BtnStop, Color3.fromRGB(80, 80, 80), Color3.fromRGB(100, 100, 100))
+        AddHoverEffect(BtnReplay, Color3.fromRGB(90, 120, 220), Color3.fromRGB(110, 140, 240))
+        AddHoverEffect(BtnSave, Theme.Accent, Color3.fromRGB(
+            math.min(Theme.Accent.R * 255 + 30, 255)/255,
+            math.min(Theme.Accent.G * 255 + 30, 255)/255,
+            math.min(Theme.Accent.B * 255 + 30, 255)/255
+        ))
         
         return Widget
     end
@@ -335,7 +519,8 @@ return function(UI, Services, Config, Theme)
                 local frame = {
                     Time = currentTime,
                     CFrame = root.CFrame,
-                    Position = root.Position
+                    Position = root.Position,
+                    Velocity = root.Velocity
                 }
                 
                 table.insert(RecordData.Frames, frame)
@@ -362,12 +547,6 @@ return function(UI, Services, Config, Theme)
                 Text = string.format("Recorded %d frames", #RecordData.Frames),
                 Duration = 3
             })
-        else
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "Recording",
-                Text = "No frames recorded",
-                Duration = 3
-            })
         end
     end
     
@@ -376,12 +555,6 @@ return function(UI, Services, Config, Theme)
     -- ============================================
     local Checkpoints = {}
     local CurrentCheckpointIndex = 1
-    
-    -- Auto-detect checkpoints
-    local function SetupCheckpointDetection()
-        -- This function would detect checkpoint parts in the game
-        -- For now, we'll use manual CP input
-    end
     
     function AddCheckpoint(name)
         if not Checkpoints[name] then
@@ -404,7 +577,7 @@ return function(UI, Services, Config, Theme)
     end
     
     -- ============================================
-    -- 4️⃣ REPLAY SYSTEM (PLAY/PAUSE/RESUME)
+    -- 4️⃣ REPLAY SYSTEM (PLAY/PAUSE/RESUME/STOP)
     -- ============================================
     local PlayConnection = nil
     local CurrentFrameIndex = 1
@@ -423,6 +596,7 @@ return function(UI, Services, Config, Theme)
                 Text = "No saved data for " .. CurrentMap,
                 Duration = 3
             })
+            IsPlaying = false
             return
         end
         
@@ -433,6 +607,7 @@ return function(UI, Services, Config, Theme)
                 Text = "No data for " .. CurrentCP,
                 Duration = 3
             })
+            IsPlaying = false
             return
         end
         
@@ -441,11 +616,11 @@ return function(UI, Services, Config, Theme)
         CurrentFrameIndex = 1
         ReplayStartTime = tick()
         
-        -- Store original position for smooth return
-        local originalCF = root.CFrame
-        
         PlayConnection = RunService.Heartbeat:Connect(function(deltaTime)
-            if not IsPlaying then return end
+            if not IsPlaying then 
+                if PlayConnection then PlayConnection:Disconnect() end
+                return 
+            end
             if IsPaused then return end
             if not LocalPlayer.Character then return end
             
@@ -483,9 +658,9 @@ return function(UI, Services, Config, Theme)
                 
                 -- Smooth interpolation
                 local targetCF = currentFrame.CFrame:Lerp(nextFrame.CFrame, t)
-                root.CFrame = root.CFrame:Lerp(targetCF, 0.3) -- Smooth follow
+                root.CFrame = root.CFrame:Lerp(targetCF, 0.5)
             else
-                root.CFrame = root.CFrame:Lerp(currentFrame.CFrame, 0.3)
+                root.CFrame = currentFrame.CFrame
             end
         end)
     end
@@ -498,14 +673,6 @@ return function(UI, Services, Config, Theme)
             PlayConnection:Disconnect()
             PlayConnection = nil
         end
-        
-        -- Reset to original position smoothly
-        if LocalPlayer.Character then
-            local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                -- No sudden teleport, just stop
-            end
-        end
     end
     
     -- ============================================
@@ -515,13 +682,13 @@ return function(UI, Services, Config, Theme)
         if #RecordData.Frames == 0 then
             Services.StarterGui:SetCore("SendNotification", {
                 Title = "Save",
-                Text = "No data to save!",
+                Text = "No data to save! Record first!",
                 Duration = 3
             })
             return
         end
         
-        if not CurrentMap then
+        if not CurrentMap or CurrentMap == "" then
             Services.StarterGui:SetCore("SendNotification", {
                 Title = "Error",
                 Text = "Enter map name first!",
@@ -539,7 +706,7 @@ return function(UI, Services, Config, Theme)
         SavedData[CurrentMap][CurrentCP] = RecordData.Frames
         
         Services.StarterGui:SetCore("SendNotification", {
-            Title = "Saved!",
+            Title = "💾 SAVED!",
             Text = string.format("%s/%s (%d frames)", CurrentMap, CurrentCP, #RecordData.Frames),
             Duration = 3
         })
@@ -568,7 +735,7 @@ return function(UI, Services, Config, Theme)
             end
             
             Services.StarterGui:SetCore("SendNotification", {
-                Title = "Deleted",
+                Title = "🗑 Deleted",
                 Text = string.format("%s/%s", mapName, cpName),
                 Duration = 3
             })
@@ -583,7 +750,7 @@ return function(UI, Services, Config, Theme)
             SavedData[mapName] = nil
             
             Services.StarterGui:SetCore("SendNotification", {
-                Title = "Deleted",
+                Title = "🗑 Deleted",
                 Text = "Map: " .. mapName,
                 Duration = 3
             })
@@ -630,7 +797,7 @@ return function(UI, Services, Config, Theme)
             -- Move towards target
             if distance > 2 then
                 local direction = (targetPos - root.Position).Unit
-                root.Velocity = direction * 20  -- Walk speed
+                root.Velocity = direction * 16  -- Walk speed
             else
                 currentStep = currentStep + 1
             end
@@ -674,7 +841,7 @@ return function(UI, Services, Config, Theme)
                 local btn = Instance.new("TextButton", MapListContainer)
                 btn.Size = UDim2.new(1, 0, 0, 25)
                 btn.BackgroundColor3 = Theme.Button
-                btn.Text = mapName
+                btn.Text = "🗺 " .. mapName
                 btn.TextColor3 = Theme.Text
                 btn.Font = Enum.Font.Gotham
                 btn.TextSize = 11
@@ -683,6 +850,14 @@ return function(UI, Services, Config, Theme)
                 
                 btn.MouseButton1Click:Connect(function()
                     UpdateCPList(mapName)
+                end)
+                
+                -- Delete on right click
+                btn.MouseButton2Click:Connect(function()
+                    UI:Confirm("Delete entire " .. mapName .. "?", function()
+                        DeleteMap(mapName)
+                        UpdateMapList()
+                    end)
                 end)
             end
         end
@@ -702,7 +877,7 @@ return function(UI, Services, Config, Theme)
                 local btn = Instance.new("TextButton", CPListContainer)
                 btn.Size = UDim2.new(1, 0, 0, 25)
                 btn.BackgroundColor3 = Theme.ButtonDark
-                btn.Text = cpName
+                btn.Text = "📍 " .. cpName
                 btn.TextColor3 = Theme.Text
                 btn.Font = Enum.Font.Gotham
                 btn.TextSize = 11
@@ -713,7 +888,12 @@ return function(UI, Services, Config, Theme)
                 btn.MouseButton1Click:Connect(function()
                     CurrentMap = mapName
                     CurrentCP = cpName
-                    PlayReplay()
+                    
+                    Services.StarterGui:SetCore("SendNotification", {
+                        Title = "Selected",
+                        Text = string.format("%s/%s", mapName, cpName),
+                        Duration = 2
+                    })
                 end)
                 
                 -- Delete button (right click)
@@ -743,16 +923,22 @@ return function(UI, Services, Config, Theme)
     -- Auto Walk Section
     RecordTab:Label("🚶 Auto Walk")
     
-    RecordTab:Toggle("Enable Auto Walk", function(state)
+    local AutoWalkToggle = RecordTab:Toggle("Enable Auto Walk", function(state)
         if state then
             if CurrentMap and CurrentCP then
                 StartAutoWalk(CurrentMap, CurrentCP)
+                Services.StarterGui:SetCore("SendNotification", {
+                    Title = "Auto Walk",
+                    Text = "Started following path",
+                    Duration = 2
+                })
             else
                 Services.StarterGui:SetCore("SendNotification", {
                     Title = "Error",
                     Text = "Select map and CP first!",
                     Duration = 3
                 })
+                AutoWalkToggle:SetState(false)
             end
         else
             StopAutoWalk()
@@ -782,6 +968,22 @@ return function(UI, Services, Config, Theme)
         UpdateMapList()
     end)
     
+    RecordTab:Button("📋 Export Data", Theme.Accent, function()
+        local count = 0
+        for mapName, mapData in pairs(SavedData) do
+            for cpName, cpData in pairs(mapData) do
+                count = count + #cpData
+            end
+        end
+        
+        Services.StarterGui:SetCore("SendNotification", {
+            Title = "Data Info",
+            Text = string.format("%d maps, %d total frames", 
+                #(SavedData and {} or {}), count),
+            Duration = 4
+        })
+    end)
+    
     -- Widget Toggle
     RecordTab:Toggle("Show Record Widget", function(state)
         if state then
@@ -797,6 +999,55 @@ return function(UI, Services, Config, Theme)
             end
         end
     end)
+    
+    -- Quick Play Section
+    RecordTab:Label("⚡ Quick Actions")
+    
+    local QuickInputRow = Instance.new("Frame", RecordTab:Container(40))
+    QuickInputRow.Size = UDim2.new(1, 0, 1, 0)
+    QuickInputRow.BackgroundTransparency = 1
+    
+    local QuickMapInput = Instance.new("TextBox", QuickInputRow)
+    QuickMapInput.Size = UDim2.new(0.4, 0, 1, 0)
+    QuickMapInput.PlaceholderText = "Map"
+    QuickMapInput.BackgroundColor3 = Theme.Button
+    QuickMapInput.TextColor3 = Theme.Text
+    QuickMapInput.Font = Enum.Font.Gotham
+    QuickMapInput.TextSize = 11
+    
+    local QuickCPInput = Instance.new("TextBox", QuickInputRow)
+    QuickCPInput.Size = UDim2.new(0.3, 0, 1, 0)
+    QuickCPInput.Position = UDim2.new(0.42, 0, 0, 0)
+    QuickCPInput.Text = "CP1"
+    QuickCPInput.BackgroundColor3 = Theme.Button
+    QuickCPInput.TextColor3 = Theme.Text
+    QuickCPInput.Font = Enum.Font.Gotham
+    QuickCPInput.TextSize = 11
+    
+    local QuickPlayBtn = Instance.new("TextButton", QuickInputRow)
+    QuickPlayBtn.Size = UDim2.new(0.25, 0, 1, 0)
+    QuickPlayBtn.Position = UDim2.new(0.74, 0, 0, 0)
+    QuickPlayBtn.BackgroundColor3 = Theme.Confirm
+    QuickPlayBtn.Text = "▶ PLAY"
+    QuickPlayBtn.TextColor3 = Theme.Text
+    QuickPlayBtn.Font = Enum.Font.GothamBold
+    QuickPlayBtn.TextSize = 11
+    
+    QuickPlayBtn.MouseButton1Click:Connect(function()
+        CurrentMap = QuickMapInput.Text
+        CurrentCP = QuickCPInput.Text
+        
+        if CurrentMap == "" then return end
+        
+        IsPlaying = true
+        IsPaused = false
+        PlayReplay()
+    end)
+    
+    -- Add corners
+    for _, obj in pairs({QuickMapInput, QuickCPInput, QuickPlayBtn}) do
+        Instance.new("UICorner", obj).CornerRadius = UDim.new(0, 4)
+    end
     
     -- ============================================
     -- INITIALIZATION & CLEANUP
@@ -816,6 +1067,12 @@ return function(UI, Services, Config, Theme)
                     if json then
                         SavedData = Services.HttpService:JSONDecode(json)
                         UpdateMapList()
+                        
+                        Services.StarterGui:SetCore("SendNotification", {
+                            Title = "Loaded",
+                            Text = "Record data loaded from file",
+                            Duration = 2
+                        })
                     end
                 end
             end
@@ -824,8 +1081,8 @@ return function(UI, Services, Config, Theme)
     
     -- Auto-save to file periodically
     local SaveConnection = RunService.Heartbeat:Connect(function()
-        -- Save every 30 seconds if there's data
-        if next(SavedData) and tick() % 30 < 0.1 then
+        -- Save every 60 seconds if there's data
+        if next(SavedData) and tick() % 60 < 0.1 then
             pcall(function()
                 if writefile then
                     local json = Services.HttpService:JSONEncode(SavedData)
@@ -841,6 +1098,7 @@ return function(UI, Services, Config, Theme)
         IsRecording = false
         IsPlaying = false
         AutoWalkActive = false
+        IsPaused = false
         
         if RecordConnection then RecordConnection:Disconnect() end
         if PlayConnection then PlayConnection:Disconnect() end
@@ -862,4 +1120,5 @@ return function(UI, Services, Config, Theme)
     end)
     
     print("[Vanzyxxx] Record-Replay-AutoWalk System loaded!")
+    print("[Vanzyxxx] Widget Layout: 6 buttons horizontal (Record, Play, Pause, Stop, Replay, Save)")
 end
