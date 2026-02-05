@@ -1,792 +1,417 @@
--- Vanzyxxx Record & Replay System
--- Full Modular dengan Auto-Walk Map System
+--[[
+    VANZYXXX ADVANCED RECORD & REPLAY SYSTEM
+    Author: Alfreadrorw1
+    Type: LocalScript / Module
+    
+    Fitur:
+    - Smooth CFrame Lerp Replay
+    - Checkpoint Aware Recording
+    - Folder Based Saving (VanzyData/Map/CP)
+    - Draggable Mini UI
+]]
 
-return function(UI, Services, Config, Theme)
-    local LocalPlayer = Services.Players.LocalPlayer
-    local RunService = Services.RunService
-    local HttpService = Services.HttpService
-    
-    -- Create Tab
-    local RecordTab = UI:Tab("Record&Replay")
-    RecordTab:Label("🎬 Motion Capture System")
-    
-    -- ================================
-    -- DATA STRUCTURES
-    -- ================================
-    
-    -- Struktur data per frame
-    -- {
-    --   time = tick(),
-    --   position = Vector3.new(x, y, z),
-    --   lookVector = Vector3.new(x, 0, z), -- Arah hadap (horizontal only)
-    --   checkpoint = nil, -- Nama checkpoint jika ada
-    --   checkpointIndex = 0 -- Index checkpoint
-    -- }
-    
-    -- Struktur data recording
-    -- {
-    --   mapName = "Map Name",
-    --   mapId = 123456789,
-    --   totalFrames = 0,
-    --   duration = 0,
-    --   checkpoints = {}, -- Table checkpoint {name, frameIndex}
-    --   frames = {} -- Table frame data
-    -- }
-    
-    -- ================================
-    -- GLOBAL VARIABLES
-    -- ================================
-    local RecordingData = {
-        isRecording = false,
-        isPlaying = false,
-        isAutoWalking = false,
-        currentRecording = nil,
-        currentPlaybackIndex = 1,
-        frameData = {},
-        recordingsList = {},
-        connection = nil,
-        playbackConnection = nil,
-        autoWalkConnection = nil
-    }
-    
-    local Storage = {
-        FileName = "VanzyRecordings.json",
-        MaxRecordings = 20
-    }
-    
-    -- ================================
-    -- RECORDING FUNCTIONS
-    -- ================================
-    
-    -- Fungsi untuk memulai recording
-    local function StartRecording()
-        if RecordingData.isRecording then return end
-        
-        RecordingData.isRecording = true
-        RecordingData.frameData = {}
-        RecordingData.currentRecording = {
-            mapName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name,
-            mapId = game.PlaceId,
-            startTime = tick(),
-            totalFrames = 0,
-            duration = 0,
-            checkpoints = {},
-            frames = {}
-        }
-        
-        -- Setup recording connection
-        RecordingData.connection = RunService.Heartbeat:Connect(function(deltaTime)
-            local char = LocalPlayer.Character
-            if not char then return end
-            
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if not root then return end
-            
-            -- Dapatkan posisi dan arah hadap
-            local position = root.Position
-            local lookVector = root.CFrame.LookVector * Vector3.new(1, 0, 1) -- Horizontal only
-            
-            -- Simpan frame dengan interpolasi smooth
-            local frame = {
-                time = tick(),
-                position = position,
-                lookVector = lookVector.Unit, -- Normalize
-                velocity = root.Velocity,
-                checkpoint = nil,
-                checkpointIndex = 0
-            }
-            
-            -- Deteksi checkpoint otomatis
-            DetectCheckpoint(frame)
-            
-            table.insert(RecordingData.frameData, frame)
-            RecordingData.currentRecording.totalFrames = RecordingData.currentRecording.totalFrames + 1
-        end)
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "🎬 RECORDING STARTED",
-            Text = "Recording movement...",
-            Duration = 3
-        })
-    end
-    
-    -- Fungsi deteksi checkpoint otomatis
-    local function DetectCheckpoint(frame)
-        -- Logic deteksi checkpoint bisa dikustomisasi
-        -- Contoh: Deteksi berdasarkan area/part tertentu
-        local char = LocalPlayer.Character
-        if not char then return end
-        
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        
-        -- Cek collision dengan part bernama "Checkpoint"
-        local region = Region3.new(root.Position - Vector3.new(5,5,5), root.Position + Vector3.new(5,5,5))
-        local parts = Services.Workspace:FindPartsInRegion3(region, char, 100)
-        
-        for _, part in ipairs(parts) do
-            if part.Name:match("Checkpoint") or part.Name:match("CP") or part.Name:match("Spawn") then
-                local cpName = part.Name
-                local cpIndex = #RecordingData.currentRecording.checkpoints + 1
-                
-                frame.checkpoint = cpName
-                frame.checkpointIndex = cpIndex
-                
-                table.insert(RecordingData.currentRecording.checkpoints, {
-                    name = cpName,
-                    frameIndex = #RecordingData.frameData,
-                    position = root.Position,
-                    time = tick() - RecordingData.currentRecording.startTime
-                })
-                
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "📍 CHECKPOINT",
-                    Text = cpName .. " detected!",
-                    Duration = 2
-                })
-                break
-            end
-        end
-    end
-    
-    -- Fungsi menghentikan recording
-    local function StopRecording()
-        if not RecordingData.isRecording then return end
-        
-        RecordingData.isRecording = false
-        
-        if RecordingData.connection then
-            RecordingData.connection:Disconnect()
-            RecordingData.connection = nil
-        end
-        
-        -- Finalize recording data
-        RecordingData.currentRecording.duration = tick() - RecordingData.currentRecording.startTime
-        RecordingData.currentRecording.frames = RecordingData.frameData
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "✅ RECORDING STOPPED",
-            Text = string.format("Recorded %d frames (%.1fs)", 
-                RecordingData.currentRecording.totalFrames,
-                RecordingData.currentRecording.duration),
-            Duration = 5
-        })
-    end
-    
-    -- Fungsi menyimpan recording
-    local function SaveRecording(recordingName)
-        if not RecordingData.currentRecording then
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "⚠️ ERROR",
-                Text = "No recording to save!",
-                Duration = 3
-            })
-            return
-        end
-        
-        -- Load existing recordings
-        local allRecordings = LoadRecordings()
-        
-        -- Add new recording
-        local saveData = RecordingData.currentRecording
-        saveData.name = recordingName or ("Recording_" .. os.date("%Y%m%d_%H%M%S"))
-        saveData.saveTime = os.date("%Y-%m-%d %H:%M:%S")
-        
-        -- Optimize data size (optional: compress positions)
-        for i, frame in ipairs(saveData.frames) do
-            -- Round position values to reduce file size
-            frame.position = Vector3.new(
-                math.round(frame.position.X * 100) / 100,
-                math.round(frame.position.Y * 100) / 100,
-                math.round(frame.position.Z * 100) / 100
-            )
-        end
-        
-        table.insert(allRecordings, saveData)
-        
-        -- Limit number of recordings
-        if #allRecordings > Storage.MaxRecordings then
-            table.remove(allRecordings, 1)
-        end
-        
-        -- Save to file
-        if writefile then
-            local success, err = pcall(function()
-                writefile(Storage.FileName, HttpService:JSONEncode(allRecordings))
-            end)
-            
-            if success then
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "💾 SAVED",
-                    Text = saveData.name .. " saved!",
-                    Duration = 3
-                })
-                RecordingData.recordingsList = allRecordings
-                UpdateRecordingsList()
-            else
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "❌ SAVE FAILED",
-                    Text = "Error: " .. tostring(err),
-                    Duration = 5
-                })
-            end
-        end
-    end
-    
-    -- ================================
-    -- REPLAY FUNCTIONS
-    -- ================================
-    
-    -- Fungsi memainkan recording
-    local function PlayRecording(recordingData, startFromCheckpoint)
-        if RecordingData.isPlaying then return end
-        
-        RecordingData.isPlaying = true
-        RecordingData.currentPlaybackIndex = 1
-        
-        local char = LocalPlayer.Character
-        if not char then return end
-        
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        
-        -- Cari starting point berdasarkan checkpoint
-        if startFromCheckpoint and #recordingData.checkpoints > 0 then
-            for i, cp in ipairs(recordingData.checkpoints) do
-                if cp.name == startFromCheckpoint then
-                    RecordingData.currentPlaybackIndex = cp.frameIndex
-                    break
-                end
-            end
-        end
-        
-        -- Setup playback dengan interpolasi smooth
-        RecordingData.playbackConnection = RunService.RenderStepped:Connect(function(deltaTime)
-            if not RecordingData.isPlaying then return end
-            
-            local frames = recordingData.frames
-            if RecordingData.currentPlaybackIndex > #frames then
-                StopPlayback()
-                return
-            end
-            
-            local currentFrame = frames[RecordingData.currentPlaybackIndex]
-            local nextFrame = frames[RecordingData.currentPlaybackIndex + 1]
-            
-            if currentFrame and root then
-                -- Interpolasi posisi untuk smooth movement
-                local targetPosition = currentFrame.position
-                
-                if nextFrame then
-                    -- Linear interpolation antara frame saat ini dan berikutnya
-                    local lerpAlpha = 0.3 -- Adjust untuk smoothness
-                    targetPosition = currentFrame.position:Lerp(nextFrame.position, lerpAlpha)
-                end
-                
-                -- Terapkan posisi dengan physics yang aman
-                root.CFrame = CFrame.new(targetPosition) * 
-                    CFrame.lookAt(targetPosition, targetPosition + currentFrame.lookVector)
-                
-                -- Lock velocity untuk mencegah physics error
-                root.Velocity = Vector3.zero
-                root.AssemblyLinearVelocity = Vector3.zero
-                
-                RecordingData.currentPlaybackIndex = RecordingData.currentPlaybackIndex + 1
-            end
-        end)
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "▶️ PLAYBACK STARTED",
-            Text = "Playing recording...",
-            Duration = 3
-        })
-    end
-    
-    -- Fungsi menghentikan playback
-    local function StopPlayback()
-        RecordingData.isPlaying = false
-        
-        if RecordingData.playbackConnection then
-            RecordingData.playbackConnection:Disconnect()
-            RecordingData.playbackConnection = nil
-        end
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "⏹️ PLAYBACK STOPPED",
-            Text = "Playback finished",
-            Duration = 3
-        })
-    end
-    
-    -- ================================
-    -- AUTO WALK SYSTEM
-    -- ================================
-    
-    local function StartAutoWalk(recordingData)
-        if RecordingData.isAutoWalking then return end
-        
-        RecordingData.isAutoWalking = true
-        RecordingData.currentPlaybackIndex = 1
-        
-        local char = LocalPlayer.Character
-        if not char then return end
-        
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char:FindFirstChild("Humanoid")
-        if not root or not humanoid then return end
-        
-        RecordingData.autoWalkConnection = RunService.Heartbeat:Connect(function(deltaTime)
-            if not RecordingData.isAutoWalking then return end
-            
-            local frames = recordingData.frames
-            if RecordingData.currentPlaybackIndex > #frames then
-                StopAutoWalk()
-                return
-            end
-            
-            local currentFrame = frames[RecordingData.currentPlaybackIndex]
-            local nextFrame = frames[RecordingData.currentPlaybackIndex + 1]
-            
-            if currentFrame then
-                -- Calculate movement direction
-                local targetPosition = currentFrame.position
-                local currentPosition = root.Position
-                
-                -- Calculate direction vector
-                local direction = (targetPosition - currentPosition)
-                local distance = direction.Magnitude
-                
-                if distance > 1 then -- Jika jarak lebih dari 1 stud
-                    -- Normalize direction dan terapkan ke humanoid
-                    direction = direction.Unit
-                    
-                    -- Set move direction (natural walking)
-                    humanoid:MoveTo(targetPosition)
-                    
-                    -- Interpolasi rotation untuk smooth turning
-                    local targetLook = currentFrame.lookVector
-                    local currentLook = root.CFrame.LookVector * Vector3.new(1, 0, 1)
-                    
-                    if targetLook.Magnitude > 0 and currentLook.Magnitude > 0 then
-                        local rotation = CFrame.lookAt(Vector3.zero, targetLook):Lerp(
-                            CFrame.lookAt(Vector3.zero, currentLook), 0.7
-                        )
-                        root.CFrame = CFrame.new(root.Position) * rotation
-                    end
-                end
-                
-                RecordingData.currentPlaybackIndex = RecordingData.currentPlaybackIndex + 1
-                
-                -- Speed control (skip frames untuk kontrol kecepatan)
-                if RecordingData.currentPlaybackIndex % 2 == 0 then
-                    RecordingData.currentPlaybackIndex = RecordingData.currentPlaybackIndex + 1
-                end
-            end
-        end)
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "🚶 AUTO WALK",
-            Text = "Auto walk started",
-            Duration = 3
-        })
-    end
-    
-    local function StopAutoWalk()
-        RecordingData.isAutoWalking = false
-        
-        if RecordingData.autoWalkConnection then
-            RecordingData.autoWalkConnection:Disconnect()
-            RecordingData.autoWalkConnection = nil
-        end
-        
-        local char = LocalPlayer.Character
-        if char then
-            local humanoid = char:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid:MoveTo(char.PrimaryPart.Position) -- Stop movement
-            end
-        end
-        
-        Services.StarterGui:SetCore("SendNotification", {
-            Title = "🛑 AUTO WALK STOPPED",
-            Text = "Auto walk finished",
-            Duration = 3
-        })
-    end
-    
-    -- ================================
-    -- STORAGE FUNCTIONS
-    -- ================================
-    
-    local function LoadRecordings()
-        if not isfile or not isfile(Storage.FileName) then
-            return {}
-        end
-        
-        local success, data = pcall(function()
-            return HttpService:JSONDecode(readfile(Storage.FileName))
-        end)
-        
-        return success and data or {}
-    end
-    
-    local function DeleteRecording(index)
-        local allRecordings = LoadRecordings()
-        
-        if index >= 1 and index <= #allRecordings then
-            table.remove(allRecordings, index)
-            
-            if writefile then
-                pcall(function()
-                    writefile(Storage.FileName, HttpService:JSONEncode(allRecordings))
-                end)
-            end
-            
-            RecordingData.recordingsList = allRecordings
-            UpdateRecordingsList()
-            
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "🗑️ DELETED",
-                Text = "Recording deleted",
-                Duration = 3
-            })
-        end
-    end
-    
-    -- ================================
-    -- UI ELEMENTS
-    -- ================================
-    
-    local RecordingsContainer = nil
-    local SelectedRecording = nil
-    
-    local function UpdateRecordingsList()
-        if not RecordingsContainer then return end
-        
-        -- Clear container
-        for _, child in ipairs(RecordingsContainer:GetChildren()) do
-            if child:IsA("Frame") or child:IsA("TextButton") then
-                child:Destroy()
-            end
-        end
-        
-        RecordingData.recordingsList = LoadRecordings()
-        
-        if #RecordingData.recordingsList == 0 then
-            local emptyLabel = Instance.new("TextLabel", RecordingsContainer)
-            emptyLabel.Size = UDim2.new(1, 0, 0, 30)
-            emptyLabel.BackgroundTransparency = 1
-            emptyLabel.Text = "No recordings saved yet"
-            emptyLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-            emptyLabel.Font = Enum.Font.Gotham
-            emptyLabel.TextSize = 12
-            return
-        end
-        
-        for i, recording in ipairs(RecordingData.recordingsList) do
-            local frame = Instance.new("Frame", RecordingsContainer)
-            frame.Size = UDim2.new(1, 0, 0, 35)
-            frame.BackgroundColor3 = Theme.Button
-            frame.ZIndex = 50
-            
-            local corner = Instance.new("UICorner", frame)
-            corner.CornerRadius = UDim.new(0, 6)
-            
-            -- Recording Info
-            local infoLabel = Instance.new("TextLabel", frame)
-            infoLabel.Size = UDim2.new(0.7, 0, 1, 0)
-            infoLabel.BackgroundTransparency = 1
-            infoLabel.Text = string.format("📁 %s\n🗺️ %s | ⏱️ %.1fs | 📊 %d frames",
-                recording.name or "Unnamed",
-                recording.mapName or "Unknown",
-                recording.duration or 0,
-                recording.totalFrames or 0)
-            infoLabel.TextColor3 = Theme.Text
-            infoLabel.Font = Enum.Font.Gotham
-            infoLabel.TextSize = 10
-            infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-            infoLabel.ZIndex = 51
-            
-            local padding = Instance.new("UIPadding", infoLabel)
-            padding.PaddingLeft = UDim.new(0, 10)
-            
-            -- Select Button
-            local selectBtn = Instance.new("TextButton", frame)
-            selectBtn.Size = UDim2.new(0.15, 0, 0.7, 0)
-            selectBtn.Position = UDim2.new(0.72, 0, 0.15, 0)
-            selectBtn.BackgroundColor3 = Theme.Confirm
-            selectBtn.Text = "SELECT"
-            selectBtn.TextColor3 = Theme.Text
-            selectBtn.Font = Enum.Font.GothamBold
-            selectBtn.TextSize = 9
-            selectBtn.ZIndex = 51
-            
-            local selectCorner = Instance.new("UICorner", selectBtn)
-            selectCorner.CornerRadius = UDim.new(0, 4)
-            
-            -- Delete Button
-            local deleteBtn = Instance.new("TextButton", frame)
-            deleteBtn.Size = UDim2.new(0.1, 0, 0.7, 0)
-            deleteBtn.Position = UDim2.new(0.88, 0, 0.15, 0)
-            deleteBtn.BackgroundColor3 = Theme.ButtonRed
-            deleteBtn.Text = "X"
-            deleteBtn.TextColor3 = Theme.Text
-            deleteBtn.Font = Enum.Font.GothamBold
-            deleteBtn.TextSize = 10
-            deleteBtn.ZIndex = 51
-            
-            local deleteCorner = Instance.new("UICorner", deleteBtn)
-            deleteCorner.CornerRadius = UDim.new(0, 4)
-            
-            -- Button Events
-            selectBtn.MouseButton1Click:Connect(function()
-                SelectedRecording = recording
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "✅ SELECTED",
-                    Text = recording.name .. " selected",
-                    Duration = 3
-                })
-            end)
-            
-            deleteBtn.MouseButton1Click:Connect(function()
-                UI:Confirm("Delete " .. recording.name .. "?", function()
-                    DeleteRecording(i)
-                end)
-            end)
-        end
-    end
-    
-    -- ================================
-    -- UI SETUP
-    -- ================================
-    
-    -- Recording Controls
-    RecordTab:Label("Recording Controls")
-    
-    local recordingStatus = RecordTab:Toggle("Start Recording", function(state)
-        if state then
-            StartRecording()
-        else
-            StopRecording()
-        end
-    end)
-    
-    RecordTab:Button("💾 Save Recording", Theme.Confirm, function()
-        if RecordingData.currentRecording then
-            UI:Confirm("Save current recording?", function()
-                SaveRecording("Recording_" .. os.date("%H%M%S"))
-            end)
-        else
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "⚠️ NO DATA",
-                Text = "Record something first!",
-                Duration = 3
-            })
-        end
-    end)
-    
-    -- Playback Controls
-    RecordTab:Label("Playback Controls")
-    
-    RecordTab:Button("▶️ Play Selected", Theme.PlayBtn or Color3.fromRGB(0, 170, 255), function()
-        if SelectedRecording then
-            PlayRecording(SelectedRecording)
-        else
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "⚠️ NO SELECTION",
-                Text = "Select a recording first!",
-                Duration = 3
-            })
-        end
-    end)
-    
-    RecordTab:Button("⏹️ Stop Playback", Theme.ButtonRed, function()
-        StopPlayback()
-        StopAutoWalk()
-    end)
-    
-    -- Auto Walk Controls
-    RecordTab:Label("Auto Walk System")
-    
-    local autoWalkToggle = RecordTab:Toggle("🚶 Enable Auto Walk", function(state)
-        if state then
-            if SelectedRecording then
-                StartAutoWalk(SelectedRecording)
-            else
-                Services.StarterGui:SetCore("SendNotification", {
-                    Title = "⚠️ NO SELECTION",
-                    Text = "Select a recording first!",
-                    Duration = 3
-                })
-                autoWalkToggle.SetState(false)
-            end
-        else
-            StopAutoWalk()
-        end
-    end)
-    
-    -- Recordings List
-    RecordTab:Label("Saved Recordings")
-    RecordingsContainer = RecordTab:Container(200)
-    
-    RecordTab:Button("🔄 Refresh List", Theme.ButtonDark, function()
-        UpdateRecordingsList()
-    end)
-    
-    -- Checkpoint Playback (Advanced)
-    RecordTab:Label("Checkpoint Playback")
-    
-    RecordTab:Button("🎯 Play from Checkpoint", Theme.Accent, function()
-        if SelectedRecording and #SelectedRecording.checkpoints > 0 then
-            local checkpointNames = {}
-            for _, cp in ipairs(SelectedRecording.checkpoints) do
-                table.insert(checkpointNames, cp.name)
-            end
-            
-            -- Simple selection via notification (bisa dikembangkan jadi dropdown)
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "🎯 CHECKPOINTS",
-                Text = "Available: " .. table.concat(checkpointNames, ", "),
-                Duration = 5
-            })
-            
-            -- Example: Play from first checkpoint
-            if #checkpointNames > 0 then
-                PlayRecording(SelectedRecording, checkpointNames[1])
-            end
-        end
-    end)
-    
-    -- ================================
-    -- INITIALIZATION
-    -- ================================
-    
-    -- Load recordings on startup
-    spawn(function()
-        task.wait(1)
-        RecordingData.recordingsList = LoadRecordings()
-        UpdateRecordingsList()
-    end)
-    
-    -- Cleanup on reset
-    Config.OnReset:Connect(function()
-        RecordingData.isRecording = false
-        RecordingData.isPlaying = false
-        RecordingData.isAutoWalking = false
-        
-        if RecordingData.connection then
-            RecordingData.connection:Disconnect()
-            RecordingData.connection = nil
-        end
-        
-        if RecordingData.playbackConnection then
-            RecordingData.playbackConnection:Disconnect()
-            RecordingData.playbackConnection = nil
-        end
-        
-        if RecordingData.autoWalkConnection then
-            RecordingData.autoWalkConnection:Disconnect()
-            RecordingData.autoWalkConnection = nil
-        end
-    end)
-    
-    -- ================================
-    -- HELPER FUNCTIONS (OPTIONAL)
-    -- ================================
-    
-    -- Fungsi untuk export recording sebagai script
-    local function ExportAsScript(recordingData)
-        local scriptTemplate = [[
--- Auto-generated Movement Script
--- Map: %s
--- Frames: %d
--- Duration: %.1f seconds
+local ReplaySystem = {}
 
-local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
-local movementData = {
-    totalFrames = %d,
-    checkpoints = %s,
-    frames = {
-%s
-    }
+-- // SERVICES //
+local Services = {
+    Players = game:GetService("Players"),
+    RunService = game:GetService("RunService"),
+    UserInputService = game:GetService("UserInputService"),
+    HttpService = game:GetService("HttpService"),
+    Workspace = game:GetService("Workspace"),
+    CoreGui = game:GetService("CoreGui")
 }
 
-local currentIndex = 1
-local isPlaying = false
-local connection = nil
+local LocalPlayer = Services.Players.LocalPlayer
+local Camera = Services.Workspace.CurrentCamera
 
-local function PlayMovement()
-    isPlaying = true
-    connection = RunService.RenderStepped:Connect(function()
-        if currentIndex > movementData.totalFrames then
-            connection:Disconnect()
+-- // CONFIGURATION //
+local Config = {
+    Folder = "VanzyData",
+    RecordInterval = 0, -- 0 = Record every frame (Smooth)
+    PlaybackSpeed = 1,
+    ShowPath = true, -- Visualisasi path (garis merah)
+    UI_Color = Color3.fromRGB(160, 32, 240) -- Tema Ungu Premium
+}
+
+-- // STATE MANAGEMENT //
+local State = {
+    IsRecording = false,
+    IsPlaying = false,
+    IsPaused = false,
+    CurrentFrame = 1,
+    RecordedData = {},
+    CurrentMap = "UnknownMap",
+    CurrentCP = "CP1",
+    TotalTime = 0
+}
+
+-- // FILE SYSTEM (Executor Check) //
+local FileSystem = {}
+function FileSystem.Init()
+    if not isfolder then return warn("Executor not supported for Saving!") end
+    if not isfolder(Config.Folder) then makefolder(Config.Folder) end
+end
+
+function FileSystem.Save(map, cp, data)
+    if not isfolder then return end
+    local mapPath = Config.Folder .. "/" .. map
+    if not isfolder(mapPath) then makefolder(mapPath) end
+    
+    local filePath = mapPath .. "/" .. cp .. ".json"
+    local encoded = Services.HttpService:JSONEncode(data)
+    writefile(filePath, encoded)
+    print("Saved to: " .. filePath)
+end
+
+function FileSystem.Load(map, cp)
+    if not isfile then return nil end
+    local path = Config.Folder .. "/" .. map .. "/" .. cp .. ".json"
+    if isfile(path) then
+        return Services.HttpService:JSONDecode(readfile(path))
+    end
+    return nil
+end
+
+-- // CORE LOGIC //
+local Core = {}
+local RecordConnection = nil
+local PlayConnection = nil
+
+-- Deteksi Map & Checkpoint (Sederhana: Cari Spawn terdekat)
+function Core.DetectLocation()
+    State.CurrentMap = tostring(game.PlaceId) -- Bisa diganti nama map asli jika ada di GUI game
+    
+    local char = LocalPlayer.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    -- Cari checkpoint terdekat (Bisa disesuaikan dengan nama object di game)
+    local closest, dist = "Start", math.huge
+    for _, v in pairs(workspace:GetDescendants()) do
+        if (v:IsA("SpawnLocation") or v.Name:lower():find("checkpoint") or v.Name:lower():find("stage")) and v:IsA("BasePart") then
+            local mag = (root.Position - v.Position).Magnitude
+            if mag < dist then
+                dist = mag
+                closest = v.Name
+            end
+        end
+    end
+    State.CurrentCP = closest
+    return State.CurrentMap, State.CurrentCP
+end
+
+-- RECORDING
+function Core.StartRecord()
+    if State.IsPlaying then return end
+    Core.DetectLocation()
+    
+    State.IsRecording = true
+    State.RecordedData = {}
+    State.TotalTime = 0
+    
+    local startTime = tick()
+    
+    -- Cleanup koneksi lama
+    if RecordConnection then RecordConnection:Disconnect() end
+    
+    RecordConnection = Services.RunService.Heartbeat:Connect(function(dt)
+        if not State.IsRecording then return end
+        
+        local char = LocalPlayer.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+        
+        local root = char.HumanoidRootPart
+        
+        -- Optimasi: Simpan data relatif terhadap waktu
+        table.insert(State.RecordedData, {
+            CF = {root.CFrame:GetComponents()}, -- Simpan komponen CFrame (X,Y,Z, R00...)
+            DT = dt
+        })
+    end)
+end
+
+function Core.StopRecord()
+    State.IsRecording = false
+    if RecordConnection then RecordConnection:Disconnect() end
+end
+
+-- REPLAY (SMOOTH LERP)
+function Core.Play(data)
+    if State.IsRecording then return end
+    if not data or #data < 2 then return warn("No Data / Data too short") end
+    
+    State.IsPlaying = true
+    State.IsPaused = false
+    State.CurrentFrame = 1
+    
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    
+    if not hum or not root then return end
+    
+    -- Physics Setup
+    hum.PlatformStand = true -- Matikan animasi/fisika bawaan agar tidak bentrok
+    root.Anchored = true -- Anchor agar teleport smooth
+    
+    if PlayConnection then PlayConnection:Disconnect() end
+    
+    local frameTime = 0
+    
+    PlayConnection = Services.RunService.RenderStepped:Connect(function(dt)
+        if not State.IsPlaying then 
+            if PlayConnection then PlayConnection:Disconnect() end
+            -- Restore Physics
+            if hum then hum.PlatformStand = false end
+            if root then root.Anchored = false end
+            return 
+        end
+        
+        if State.IsPaused then return end
+        
+        -- Logic Frame Advance
+        local currentData = data[State.CurrentFrame]
+        local nextData = data[State.CurrentFrame + 1]
+        
+        if not nextData then
+            -- Selesai
+            Core.StopPlay()
             return
         end
         
-        local frame = movementData.frames[currentIndex]
-        local char = LocalPlayer.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                root.CFrame = CFrame.new(frame.position) * 
-                    CFrame.lookAt(frame.position, frame.position + frame.lookVector)
+        -- Akumulasi waktu real (untuk speed hack atau slow mo)
+        frameTime = frameTime + (dt * Config.PlaybackSpeed)
+        
+        -- Jika waktu frame sudah lewat, pindah ke index array berikutnya
+        while frameTime >= currentData.DT do
+            frameTime = frameTime - currentData.DT
+            State.CurrentFrame = State.CurrentFrame + 1
+            currentData = data[State.CurrentFrame]
+            nextData = data[State.CurrentFrame + 1]
+            
+            if not nextData then
+                Core.StopPlay()
+                return
             end
         end
         
-        currentIndex = currentIndex + 1
+        -- INTERPOLASI (LERP)
+        -- Menghitung persentase perjalanan antar 2 frame (Alpha)
+        local alpha = frameTime / currentData.DT
+        
+        local cf1 = CFrame.new(unpack(currentData.CF))
+        local cf2 = CFrame.new(unpack(nextData.CF))
+        
+        -- Gerakkan karakter
+        root.CFrame = cf1:Lerp(cf2, alpha)
     end)
 end
 
--- Call PlayMovement() to start
-]]
-        
-        -- Format checkpoint data
-        local cpString = "{"
-        for i, cp in ipairs(recordingData.checkpoints) do
-            cpString = cpString .. string.format('{name="%s", frame=%d}, ', cp.name, cp.frameIndex)
-        end
-        cpString = cpString .. "}"
-        
-        -- Format frame data
-        local framesString = ""
-        for i, frame in ipairs(recordingData.frames) do
-            if i % 50 == 0 then -- Only include every 50th frame to reduce size
-                framesString = framesString .. string.format(
-                    '        {position=Vector3.new(%.2f, %.2f, %.2f), lookVector=Vector3.new(%.2f, 0, %.2f)},\n',
-                    frame.position.X, frame.position.Y, frame.position.Z,
-                    frame.lookVector.X, frame.lookVector.Z
-                )
-            end
-        end
-        
-        local finalScript = string.format(
-            scriptTemplate,
-            recordingData.mapName,
-            recordingData.totalFrames,
-            recordingData.duration,
-            recordingData.totalFrames,
-            cpString,
-            framesString
-        )
-        
-        return finalScript
+function Core.StopPlay()
+    State.IsPlaying = false
+    State.IsPaused = false
+    State.CurrentFrame = 1
+    
+    local char = LocalPlayer.Character
+    if char then
+        if char:FindFirstChild("Humanoid") then char.Humanoid.PlatformStand = false end
+        if char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.Anchored = false end
+    end
+end
+
+function Core.TogglePause()
+    State.IsPaused = not State.IsPaused
+end
+
+-- // UI CONSTRUCTION (MINI DRAGGABLE) //
+function ReplaySystem.CreateUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "VanzyRecorder"
+    ScreenGui.Parent = Services.CoreGui
+    ScreenGui.ResetOnSpawn = false
+    
+    local MainFrame = Instance.new("Frame", ScreenGui)
+    MainFrame.Name = "Main"
+    MainFrame.Size = UDim2.new(0, 160, 0, 200) -- Ukuran Mini
+    MainFrame.Position = UDim2.new(0.05, 0, 0.4, 0)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    MainFrame.BorderSizePixel = 0
+    
+    local Corner = Instance.new("UICorner", MainFrame)
+    Corner.CornerRadius = UDim.new(0, 8)
+    
+    local Stroke = Instance.new("UIStroke", MainFrame)
+    Stroke.Color = Config.UI_Color
+    Stroke.Thickness = 2
+    
+    -- Header (Drag Area)
+    local Header = Instance.new("TextLabel", MainFrame)
+    Header.Size = UDim2.new(1, 0, 0, 25)
+    Header.BackgroundTransparency = 1
+    Header.Text = "RECORDER"
+    Header.TextColor3 = Config.UI_Color
+    Header.Font = Enum.Font.GothamBlack
+    Header.TextSize = 14
+    
+    -- Status Label
+    local StatusLbl = Instance.new("TextLabel", MainFrame)
+    StatusLbl.Size = UDim2.new(1, 0, 0, 20)
+    StatusLbl.Position = UDim2.new(0, 0, 0, 25)
+    StatusLbl.BackgroundTransparency = 1
+    StatusLbl.Text = "IDLE"
+    StatusLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
+    StatusLbl.Font = Enum.Font.Gotham
+    StatusLbl.TextSize = 10
+    
+    -- CP Info
+    local CPLbl = Instance.new("TextLabel", MainFrame)
+    CPLbl.Size = UDim2.new(1, 0, 0, 15)
+    CPLbl.Position = UDim2.new(0, 0, 0, 40)
+    CPLbl.BackgroundTransparency = 1
+    CPLbl.Text = "Map: ... | CP: ..."
+    CPLbl.TextColor3 = Color3.fromRGB(100, 100, 100)
+    CPLbl.TextSize = 9
+    
+    -- Container Tombol
+    local BtnContainer = Instance.new("Frame", MainFrame)
+    BtnContainer.Size = UDim2.new(1, -10, 1, -60)
+    BtnContainer.Position = UDim2.new(0, 5, 0, 55)
+    BtnContainer.BackgroundTransparency = 1
+    
+    local Layout = Instance.new("UIGridLayout", BtnContainer)
+    Layout.CellSize = UDim2.new(0.48, 0, 0, 30)
+    Layout.CellPadding = UDim2.new(0.04, 0, 0.04, 0)
+    
+    -- Helper buat bikin tombol
+    local function CreateBtn(text, color, func)
+        local btn = Instance.new("TextButton", BtnContainer)
+        btn.BackgroundColor3 = color
+        btn.Text = text
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 10
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        btn.MouseButton1Click:Connect(func)
+        return btn
     end
     
-    -- Export button (optional)
-    RecordTab:Button("📤 Export as Script", Theme.Accent, function()
-        if SelectedRecording then
-            local script = ExportAsScript(SelectedRecording)
-            setclipboard(script)
-            Services.StarterGui:SetCore("SendNotification", {
-                Title = "📋 COPIED",
-                Text = "Script copied to clipboard!",
-                Duration = 3
-            })
+    -- Tombol-Tombol
+    local RecBtn = CreateBtn("REC", Color3.fromRGB(200, 50, 50), function()
+        if State.IsRecording then
+            Core.StopRecord()
+            StatusLbl.Text = "STOPPED"
+        else
+            Core.StartRecord()
+            StatusLbl.Text = "RECORDING..."
+            StatusLbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+            -- Update UI loop
+            spawn(function()
+                while State.IsRecording do
+                    CPLbl.Text = State.CurrentCP
+                    task.wait(0.5)
+                end
+            end)
         end
     end)
     
-    print("[Vanzyxxx] Record & Replay System Loaded!")
+    local PlayBtn = CreateBtn("PLAY", Color3.fromRGB(50, 200, 50), function()
+        if State.IsRecording then return end
+        if #State.RecordedData == 0 then return warn("No Data") end
+        
+        if State.IsPlaying then
+            Core.StopPlay()
+            StatusLbl.Text = "STOPPED"
+        else
+            StatusLbl.Text = "PLAYING..."
+            StatusLbl.TextColor3 = Color3.fromRGB(50, 200, 50)
+            Core.Play(State.RecordedData)
+        end
+    end)
+    
+    local PauseBtn = CreateBtn("PAUSE", Color3.fromRGB(200, 150, 50), function()
+        Core.TogglePause()
+        StatusLbl.Text = State.IsPaused and "PAUSED" or "PLAYING..."
+    end)
+    
+    local SaveBtn = CreateBtn("SAVE", Color3.fromRGB(50, 100, 200), function()
+        if #State.RecordedData > 0 then
+            local map, cp = Core.DetectLocation()
+            FileSystem.Save(map, cp, State.RecordedData)
+            StatusLbl.Text = "SAVED: " .. cp
+        end
+    end)
+    
+    local LoadBtn = CreateBtn("LOAD LAST", Color3.fromRGB(100, 50, 150), function()
+        local map, cp = Core.DetectLocation()
+        local data = FileSystem.Load(map, cp)
+        if data then
+            State.RecordedData = data
+            StatusLbl.Text = "LOADED: " .. cp
+        else
+            StatusLbl.Text = "NO FILE"
+        end
+    end)
+    
+    -- Toggle UI (Minimize)
+    local MiniBtn = Instance.new("TextButton", MainFrame)
+    MiniBtn.Size = UDim2.new(0, 20, 0, 20)
+    MiniBtn.Position = UDim2.new(1, -25, 0, 2)
+    MiniBtn.BackgroundTransparency = 1
+    MiniBtn.Text = "-"
+    MiniBtn.TextColor3 = Config.UI_Color
+    MiniBtn.TextSize = 18
+    
+    local Expanded = true
+    MiniBtn.MouseButton1Click:Connect(function()
+        Expanded = not Expanded
+        if Expanded then
+            MainFrame:TweenSize(UDim2.new(0, 160, 0, 200), "Out", "Quad", 0.3)
+            BtnContainer.Visible = true
+        else
+            MainFrame:TweenSize(UDim2.new(0, 160, 0, 30), "Out", "Quad", 0.3)
+            BtnContainer.Visible = false
+        end
+    end)
+
+    -- DRAGGABLE LOGIC
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    
+    Services.UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
 end
+
+-- // INITIALIZATION //
+FileSystem.Init()
+ReplaySystem.CreateUI()
+
+print("[Vanzyxxx] Modular Recorder Loaded")
+return ReplaySystem
