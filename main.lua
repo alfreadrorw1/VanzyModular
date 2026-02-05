@@ -656,9 +656,8 @@ local GitHubBaseURL = "https://raw.githubusercontent.com/alfreadrorw1/VanzyModul
 local FeatureList = {
     -- Movement Features
     {category = "Movement", name = "fly", url = GitHubBaseURL .. "features/Movement/fly.lua"},
-    {category = "Movement", name = "speed", url = GitHubBaseURL .. "features/Movement/speed.lua"},
+    {category = "Movement", name = "autoWalk", url = GitHubBaseURL .. "features/Movement/autoWalk.lua"},
     {category = "Movement", name = "infinityJump", url = GitHubBaseURL .. "features/Movement/infinityJump.lua"},
-    {category = "Movement", name = "noclip", url = GitHubBaseURL .. "features/Movement/noclip.lua"},
     
     -- Visual Features
     {category = "Visual", name = "esp", url = GitHubBaseURL .. "features/Visual/esp.lua"},
