@@ -1,7 +1,7 @@
 -- features/Visual/cloneAvatar.lua
 -- Fitur Clone Avatar untuk Vanzyxxx Modular
--- Author: FayintXCode (Super Fixed by Gemini)
--- Version: 5.0.0 (Touch Threshold Logic + Purple Theme)
+-- Author: FayintXCode (Ultima Fix by Gemini)
+-- Version: 6.0.0 (Deadzone Logic: Tap vs Drag)
 
 return function(UI, Services, Config, Theme)
     -- [[ SERVICES ]]
@@ -15,7 +15,7 @@ return function(UI, Services, Config, Theme)
     
     local LocalPlayer = Players.LocalPlayer
     
-    -- [[ THEME CONFIGURATION (PURPLE VERSION) ]]
+    -- [[ THEME CONFIGURATION (PURPLE) ]]
     local CloneConfig = {
         Theme = {
             Accent = Color3.fromRGB(160, 32, 240),      -- Ungu Terang
@@ -49,27 +49,35 @@ return function(UI, Services, Config, Theme)
         end)
     end
 
-    -- [[ SUPER FIX: HYBRID DRAG & CLICK SYSTEM ]]
-    -- Fungsi ini menangani Drag DAN Click sekaligus agar tidak bentrok
-    local function EnableDragAndClick(guiObject, onClickFunction)
+    -- [[ ULTIMA DRAG SYSTEM (THE FIX) ]]
+    -- Memisahkan Klik dan Geser berdasarkan jarak gerakan
+    local function EnableSmartDrag(guiObject, onClickFunction)
         local dragging = false
         local dragInput = nil
         local dragStart = nil
         local startPos = nil
-        local hasMoved = false -- Penanda apakah jari bergerak
+        local totalMoved = 0 -- Menghitung total jarak gerakan
 
+        -- Saat jari menyentuh layar
         guiObject.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
-                hasMoved = false -- Reset status gerak
+                totalMoved = 0 -- Reset counter gerakan
                 dragStart = input.Position
                 startPos = guiObject.Position
                 
+                -- Animasi tekan (sedikit mengecil)
+                TweenService:Create(guiObject, TweenInfo.new(0.1), {Size = UDim2.new(0, 45, 0, 45)}):Play()
+
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
                         dragging = false
-                        -- LOGIKA KLIK: Jika jari diangkat dan TIDAK bergerak (atau gerak dikit banget), itu KLIK.
-                        if not hasMoved and onClickFunction then
+                        -- Animasi lepas (kembali normal)
+                        TweenService:Create(guiObject, TweenInfo.new(0.1), {Size = UDim2.new(0, 50, 0, 50)}):Play()
+                        
+                        -- LOGIKA DEWA: Jika gerakannya DIKIT BANGET (< 15 pixel), itu KLIK!
+                        -- Jika gerakannya BANYAK (> 15 pixel), itu GESER (dan klik dibatalkan)
+                        if totalMoved < 15 and onClickFunction then
                             onClickFunction()
                         end
                     end
@@ -86,19 +94,23 @@ return function(UI, Services, Config, Theme)
         UserInputService.InputChanged:Connect(function(input)
             if input == dragInput and dragging then
                 local delta = input.Position - dragStart
+                local currentDist = delta.Magnitude -- Jarak dari titik awal
                 
-                -- Threshold Check: Hanya dianggap "Geser" jika bergerak lebih dari 5 pixel
-                if (input.Position - dragStart).Magnitude > 5 then
-                    hasMoved = true -- Tandai bahwa ini adalah gerakan geser, BUKAN klik
-                    guiObject.Position = UDim2.new(
-                        startPos.X.Scale, 
-                        startPos.X.Offset + delta.X, 
-                        startPos.Y.Scale, 
-                        startPos.Y.Offset + delta.Y
-                    )
-                end
+                -- Update total gerakan untuk deteksi klik
+                totalMoved = currentDist
+
+                -- Update posisi (Drag Realtime)
+                -- Kita izinkan drag langsung, tapi nanti pas dilepas baru dicek itu klik atau bukan
+                guiObject.Position = UDim2.new(
+                    startPos.X.Scale, 
+                    startPos.X.Offset + delta.X, 
+                    startPos.Y.Scale, 
+                    startPos.Y.Offset + delta.Y
+                )
             end
         end)
+        
+        guiObject.Active = true
     end
 
     -- [[ EXPLOSION EFFECT ]]
@@ -145,7 +157,7 @@ return function(UI, Services, Config, Theme)
                 State.OriginalDescription = hum:GetAppliedDescription()
             end
 
-            Notify("Loading...", "Mengambil data avatar...")
+            Notify("Loading...", "Fetching Avatar...")
 
             local success, desc = pcall(function()
                 return Players:GetHumanoidDescriptionFromUserId(userId)
@@ -176,9 +188,10 @@ return function(UI, Services, Config, Theme)
         if ScreenGui then ScreenGui:Destroy() end
 
         ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "VanzyPurpleV5"
+        ScreenGui.Name = "VanzyPurpleV6"
         ScreenGui.ResetOnSpawn = false
-        ScreenGui.DisplayOrder = 10000 -- Layer Tertinggi
+        ScreenGui.DisplayOrder = 100 -- Z-Index Global Tertinggi
+        ScreenGui.IgnoreGuiInset = true -- Supaya tidak kepotong topbar
         
         if gethui then 
             ScreenGui.Parent = gethui() 
@@ -188,7 +201,7 @@ return function(UI, Services, Config, Theme)
             ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
         end
 
-        -- 1. WIDGET BUTTON (Touch Friendly)
+        -- 1. WIDGET BUTTON
         MiniButton = Instance.new("TextButton", ScreenGui)
         MiniButton.Name = "WidgetButton"
         MiniButton.Size = UDim2.new(0, 50, 0, 50)
@@ -197,19 +210,19 @@ return function(UI, Services, Config, Theme)
         MiniButton.Text = "👥"
         MiniButton.TextSize = 25
         MiniButton.TextColor3 = CloneConfig.Theme.Accent
-        MiniButton.AutoButtonColor = false -- Matikan auto color biar ga glitch
+        MiniButton.AutoButtonColor = false 
         MiniButton.Visible = false
-        MiniButton.ZIndex = 20
+        MiniButton.ZIndex = 50
 
         local MiniCorner = Instance.new("UICorner", MiniButton)
         MiniCorner.CornerRadius = UDim.new(1, 0)
 
         local MiniStroke = Instance.new("UIStroke", MiniButton)
         MiniStroke.Color = CloneConfig.Theme.Accent
-        MiniStroke.Thickness = 2.5
+        MiniStroke.Thickness = 2
         MiniStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-        -- 2. MAIN MENU (Hidden)
+        -- 2. MAIN MENU
         MainFrame = Instance.new("Frame", ScreenGui)
         MainFrame.Name = "MainPanel"
         MainFrame.Size = UDim2.new(0, 300, 0, 350)
@@ -217,10 +230,10 @@ return function(UI, Services, Config, Theme)
         MainFrame.BackgroundColor3 = CloneConfig.Theme.Background
         MainFrame.Visible = false
         MainFrame.ClipsDescendants = true
-        MainFrame.ZIndex = 10
+        MainFrame.ZIndex = 20
         
-        -- Fitur Drag untuk Panel Utama (Tanpa klik function, cuma drag)
-        EnableDragAndClick(MainFrame, nil)
+        -- Pasang Smart Drag ke MainFrame juga
+        EnableSmartDrag(MainFrame, nil)
 
         local MainStroke = Instance.new("UIStroke", MainFrame)
         MainStroke.Color = CloneConfig.Theme.Accent
@@ -233,7 +246,7 @@ return function(UI, Services, Config, Theme)
         local Header = Instance.new("Frame", MainFrame)
         Header.Size = UDim2.new(1, 0, 0, 45)
         Header.BackgroundTransparency = 1
-        Header.ZIndex = 11
+        Header.ZIndex = 21
 
         local Title = Instance.new("TextLabel", Header)
         Title.Size = UDim2.new(1, -40, 1, 0)
@@ -244,7 +257,7 @@ return function(UI, Services, Config, Theme)
         Title.TextColor3 = CloneConfig.Theme.Accent
         Title.TextSize = 18
         Title.TextXAlignment = Enum.TextXAlignment.Left
-        Title.ZIndex = 11
+        Title.ZIndex = 21
 
         local CloseBtn = Instance.new("TextButton", Header)
         CloseBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -254,14 +267,14 @@ return function(UI, Services, Config, Theme)
         CloseBtn.TextColor3 = CloneConfig.Theme.SubText
         CloseBtn.TextSize = 24
         CloseBtn.Font = Enum.Font.GothamBold
-        CloseBtn.ZIndex = 12
+        CloseBtn.ZIndex = 22
 
         -- CONTENT
         local Content = Instance.new("Frame", MainFrame)
         Content.Size = UDim2.new(1, -30, 1, -55)
         Content.Position = UDim2.new(0, 15, 0, 50)
         Content.BackgroundTransparency = 1
-        Content.ZIndex = 11
+        Content.ZIndex = 21
 
         local InputBox = Instance.new("TextBox", Content)
         InputBox.Size = UDim2.new(1, 0, 0, 45)
@@ -272,7 +285,7 @@ return function(UI, Services, Config, Theme)
         InputBox.TextColor3 = CloneConfig.Theme.Text
         InputBox.Font = Enum.Font.GothamBold
         InputBox.TextSize = 14
-        InputBox.ZIndex = 12
+        InputBox.ZIndex = 22
         Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 8)
         
         local InputStroke = Instance.new("UIStroke", InputBox)
@@ -288,7 +301,7 @@ return function(UI, Services, Config, Theme)
         CopyBtn.Font = Enum.Font.GothamBlack
         CopyBtn.TextColor3 = Color3.white
         CopyBtn.TextSize = 14
-        CopyBtn.ZIndex = 12
+        CopyBtn.ZIndex = 22
         Instance.new("UICorner", CopyBtn).CornerRadius = UDim.new(0, 8)
 
         local RandomBtn = Instance.new("TextButton", Content)
@@ -299,7 +312,7 @@ return function(UI, Services, Config, Theme)
         RandomBtn.Font = Enum.Font.GothamBlack
         RandomBtn.TextColor3 = Color3.white
         RandomBtn.TextSize = 14
-        RandomBtn.ZIndex = 12
+        RandomBtn.ZIndex = 22
         Instance.new("UICorner", RandomBtn).CornerRadius = UDim.new(0, 8)
 
         local ResetBtn = Instance.new("TextButton", Content)
@@ -310,19 +323,18 @@ return function(UI, Services, Config, Theme)
         ResetBtn.Font = Enum.Font.GothamBold
         ResetBtn.TextColor3 = CloneConfig.Theme.SubText
         ResetBtn.TextSize = 12
-        ResetBtn.ZIndex = 12
+        ResetBtn.ZIndex = 22
         Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8)
 
-        -- [[ LOGIC ]]
+        -- [[ LOGIC HANDLERS ]]
         
-        -- FUNCTION TOGGLE (Dipanggil oleh EnableDragAndClick)
+        -- Fungsi Toggle Menu (Dipanggil jika gerakan < 15 pixel)
         local function ToggleMenu()
             State.IsGuiOpen = not State.IsGuiOpen
             MainFrame.Visible = State.IsGuiOpen
             
-            -- Reset posisi frame ke tengah setiap kali dibuka (safety measure)
             if State.IsGuiOpen then
-                MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+                MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175) -- Reset ke tengah
                 MiniButton.BackgroundColor3 = CloneConfig.Theme.Accent
                 MiniButton.TextColor3 = Color3.white
             else
@@ -331,10 +343,10 @@ return function(UI, Services, Config, Theme)
             end
         end
 
-        -- PASANG LOGIKA HYBRID KE WIDGET
-        EnableDragAndClick(MiniButton, ToggleMenu)
+        -- Pasang Smart Drag ke Widget
+        EnableSmartDrag(MiniButton, ToggleMenu)
 
-        -- Button Events Standard
+        -- Standard Events
         CloseBtn.MouseButton1Click:Connect(function()
             State.IsGuiOpen = false
             MainFrame.Visible = false
@@ -360,7 +372,7 @@ return function(UI, Services, Config, Theme)
                 InputBox.Text = t.Name
                 ApplyAvatar(t.UserId)
             else
-                Notify("Info", "Sepi amat servernya.")
+                Notify("Info", "Tidak ada player lain.")
             end
         end)
 
@@ -371,7 +383,7 @@ return function(UI, Services, Config, Theme)
     
     local CosmeticsTab = UI:Tab("Cosmetics")
     
-    CosmeticsTab:Label("Clone Avatar (Super Fix)")
+    CosmeticsTab:Label("Clone Avatar (Purple V6)")
     
     CosmeticsTab:Toggle("Show Widget 👥", function(state)
         State.WidgetEnabled = state
@@ -379,7 +391,7 @@ return function(UI, Services, Config, Theme)
         if state then
             if not ScreenGui then CreateUI() end
             if MiniButton then MiniButton.Visible = true end
-            Notify("Clone UI", "Widget Aktif! (Geser/Klik)")
+            Notify("Clone UI", "Tap: Buka | Tarik: Geser")
         else
             if MiniButton then MiniButton.Visible = false end
             if MainFrame then MainFrame.Visible = false end
