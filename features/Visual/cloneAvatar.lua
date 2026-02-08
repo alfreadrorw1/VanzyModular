@@ -1,7 +1,7 @@
 -- features/Visual/cloneAvatar.lua
 -- Fitur Clone Avatar untuk Vanzyxxx Modular
 -- Author: FayintXCode (Fixed by Gemini)
--- Version: 3.0.0 (Fix Blank UI + Toggle Widget)
+-- Version: 4.0.0 (Purple Theme + Mobile Drag Fix)
 
 return function(UI, Services, Config, Theme)
     -- [[ SERVICES ]]
@@ -9,67 +9,91 @@ return function(UI, Services, Config, Theme)
     local UserInputService = Services.UserInputService
     local HttpService = Services.HttpService
     local StarterGui = Services.StarterGui
-    local RunService = Services.RunService
     local Debris = game:GetService("Debris")
     local TweenService = Services.TweenService
+    local RunService = Services.RunService
     
     local LocalPlayer = Players.LocalPlayer
     
-    -- [[ UI VARIABLES ]]
-    local ScreenGui = nil
-    local MiniButton = nil
-    local MainFrame = nil
-    local CurrentConnection = nil
-    
-    -- [[ CONFIGURATION ]]
+    -- [[ THEME CONFIGURATION (PURPLE VERSION) ]]
     local CloneConfig = {
-        FileName = "VanzyAvatarFavorites.json",
         Theme = {
-            Background = Color3.fromRGB(15, 15, 15),
-            ItemBG = Color3.fromRGB(30, 30, 30),
-            Accent = Color3.fromRGB(255, 40, 70), -- Merah Pink
-            Text = Color3.fromRGB(255, 255, 255),
-            SubText = Color3.fromRGB(180, 180, 180),
-            Random = Color3.fromRGB(200, 40, 60)
+            -- Warna Utama: Ungu Premium
+            Accent = Color3.fromRGB(160, 32, 240),      -- Ungu Terang (Tombol/List)
+            Background = Color3.fromRGB(20, 15, 30),    -- Ungu Gelap (Background)
+            ItemBG = Color3.fromRGB(35, 25, 45),        -- Ungu Abu (Input Box)
+            Text = Color3.fromRGB(255, 255, 255),       -- Putih
+            SubText = Color3.fromRGB(180, 160, 200),    -- Ungu Muda Pudar
+            Random = Color3.fromRGB(255, 50, 100),      -- Merah/Pink (Tombol Reset/Random)
         }
     }
     
     local State = {
         OriginalDescription = nil,
-        Favorites = {},
-        IsGuiOpen = false,
-        WidgetEnabled = false
+        WidgetEnabled = false,
+        IsGuiOpen = false
     }
+
+    -- [[ UI VARIABLES ]]
+    local ScreenGui = nil
+    local MiniButton = nil
+    local MainFrame = nil
 
     -- [[ HELPER FUNCTIONS ]]
     local function Notify(title, text)
-        StarterGui:SetCore("SendNotification", {Title = title, Text = text, Duration = 2})
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = title,
+                Text = text,
+                Duration = 2,
+                Icon = "rbxassetid://135254" -- Optional Icon
+            })
+        end)
     end
 
-    local function MakeDraggable(frame)
-        local dragging, dragInput, dragStart, startPos
-        frame.InputBegan:Connect(function(input)
+    -- [[ MOBILE DRAGGABLE SYSTEM (FIXED) ]]
+    -- Logika drag ini lebih stabil untuk executor mobile seperti Delta
+    local function MakeDraggable(guiObject)
+        local dragging = false
+        local dragInput = nil
+        local dragStart = nil
+        local startPos = nil
+
+        guiObject.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                 dragging = true
                 dragStart = input.Position
-                startPos = frame.Position
+                startPos = guiObject.Position
                 
                 input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
                 end)
             end
         end)
-        frame.InputChanged:Connect(function(input)
+
+        guiObject.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
                 dragInput = input
             end
         end)
+
         UserInputService.InputChanged:Connect(function(input)
             if input == dragInput and dragging then
                 local delta = input.Position - dragStart
-                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                guiObject.Position = UDim2.new(
+                    startPos.X.Scale, 
+                    startPos.X.Offset + delta.X, 
+                    startPos.Y.Scale, 
+                    startPos.Y.Offset + delta.Y
+                )
             end
         end)
+        
+        -- Aktifkan interaksi touch
+        guiObject.Active = true
+        guiObject.Selectable = true
     end
 
     -- [[ EXPLOSION EFFECT ]]
@@ -78,6 +102,7 @@ return function(UI, Services, Config, Theme)
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not root then return end
 
+        -- Suara
         local sound = Instance.new("Sound")
         sound.SoundId = "rbxassetid://142070127"
         sound.Volume = 2
@@ -85,18 +110,20 @@ return function(UI, Services, Config, Theme)
         sound:Play()
         Debris:AddItem(sound, 3)
 
+        -- Visual Ledakan
         local explosion = Instance.new("Explosion")
         explosion.Position = root.Position
         explosion.BlastPressure = 0
-        explosion.BlastRadius = 10
+        explosion.BlastRadius = 12
         explosion.ExplosionType = Enum.ExplosionType.NoCraters
         explosion.Parent = root
 
+        -- Api Ungu (Biar sesuai tema)
         for _, part in pairs(char:GetChildren()) do
             if part:IsA("BasePart") then
                 local fire = Instance.new("Fire")
-                fire.Color = Color3.fromRGB(255, 100, 50)
-                fire.SecondaryColor = Color3.fromRGB(255, 255, 0)
+                fire.Color = Color3.fromRGB(170, 0, 255) -- Api Ungu
+                fire.SecondaryColor = Color3.fromRGB(255, 100, 255)
                 fire.Size = 4
                 fire.Heat = 10
                 fire.Parent = part
@@ -119,7 +146,7 @@ return function(UI, Services, Config, Theme)
                 State.OriginalDescription = hum:GetAppliedDescription()
             end
 
-            Notify("Loading...", "Fetching Avatar ID: " .. userId)
+            Notify("Clone Avatar", "Sedang mengambil data...")
 
             local success, desc = pcall(function()
                 return Players:GetHumanoidDescriptionFromUserId(userId)
@@ -127,11 +154,11 @@ return function(UI, Services, Config, Theme)
 
             if success and desc then
                 PlayExplosionEffect()
-                task.wait(0.1)
+                task.wait(0.15)
                 hum:ApplyDescription(desc)
-                Notify("Success", "Avatar Cloned!")
+                Notify("Success", "Avatar berhasil diubah!")
             else
-                Notify("Error", "Gagal mengambil avatar.")
+                Notify("Error", "Gagal load avatar. ID Invalid?")
             end
         end)
     end
@@ -139,178 +166,171 @@ return function(UI, Services, Config, Theme)
     local function ResetAvatar()
         if State.OriginalDescription and LocalPlayer.Character then
             PlayExplosionEffect()
-            task.wait(0.1)
+            task.wait(0.15)
             LocalPlayer.Character.Humanoid:ApplyDescription(State.OriginalDescription)
             Notify("Reset", "Avatar dikembalikan.")
         end
     end
 
-    -- [[ UI CREATION SYSTEM ]]
-    local function CreateInterface()
+    -- [[ UI CONSTRUCTION ]]
+    local function CreateUI()
         if ScreenGui then ScreenGui:Destroy() end
 
         ScreenGui = Instance.new("ScreenGui")
-        ScreenGui.Name = "VanzyCloneUI_V3"
+        ScreenGui.Name = "VanzyPurpleCloneUI"
         ScreenGui.ResetOnSpawn = false
-        if gethui then ScreenGui.Parent = gethui() else ScreenGui.Parent = Services.CoreGui end
+        ScreenGui.DisplayOrder = 9999 -- Pastikan di atas segalanya
+        
+        -- Parent ke CoreGui atau PlayerGui
+        if gethui then 
+            ScreenGui.Parent = gethui() 
+        elseif game:GetService("CoreGui") then
+            ScreenGui.Parent = game:GetService("CoreGui")
+        else
+            ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
 
-        -- 1. FLOATING WIDGET (Tombol Bulat)
+        -- 1. FLOATING WIDGET (BULAT)
         MiniButton = Instance.new("TextButton", ScreenGui)
-        MiniButton.Name = "MiniWidget"
-        MiniButton.Size = UDim2.new(0, 45, 0, 45)
-        MiniButton.Position = UDim2.new(0.85, 0, 0.4, 0)
+        MiniButton.Name = "WidgetButton"
+        MiniButton.Size = UDim2.new(0, 50, 0, 50)
+        MiniButton.Position = UDim2.new(0.85, 0, 0.4, 0) -- Posisi Default Kanan
         MiniButton.BackgroundColor3 = CloneConfig.Theme.Background
         MiniButton.Text = "👥"
-        MiniButton.TextSize = 24
+        MiniButton.TextSize = 25
         MiniButton.TextColor3 = CloneConfig.Theme.Accent
         MiniButton.AutoButtonColor = true
-        MiniButton.Visible = State.WidgetEnabled -- Controlled by Menu
-        
-        local MiniCorner = Instance.new("UICorner", MiniButton)
-        MiniCorner.CornerRadius = UDim.new(1, 0) -- Bulat Sempurna
-        
+        MiniButton.BorderSizePixel = 0
+        MiniButton.Visible = false -- Dimulai sembunyi
+        MiniButton.ZIndex = 10
+
         local MiniStroke = Instance.new("UIStroke", MiniButton)
         MiniStroke.Color = CloneConfig.Theme.Accent
-        MiniStroke.Thickness = 2
+        MiniStroke.Thickness = 2.5
         MiniStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
+        local MiniCorner = Instance.new("UICorner", MiniButton)
+        MiniCorner.CornerRadius = UDim.new(1, 0) -- Bulat Sempurna
+
+        -- Pasang Drag ke Widget
         MakeDraggable(MiniButton)
 
-        -- 2. MAIN PANEL (The Window)
+        -- 2. MAIN PANEL (MENU UTAMA)
         MainFrame = Instance.new("Frame", ScreenGui)
         MainFrame.Name = "MainPanel"
-        MainFrame.Size = UDim2.new(0, 300, 0, 380)
-        MainFrame.Position = UDim2.new(0.5, -150, 0.5, -190)
+        MainFrame.Size = UDim2.new(0, 300, 0, 350)
+        MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175) -- Center
         MainFrame.BackgroundColor3 = CloneConfig.Theme.Background
         MainFrame.Visible = false
-        MainFrame.ZIndex = 1
-        
-        local MainCorner = Instance.new("UICorner", MainFrame)
-        MainCorner.CornerRadius = UDim.new(0, 12)
-        
+        MainFrame.ClipsDescendants = true
+        MainFrame.ZIndex = 5
+
         local MainStroke = Instance.new("UIStroke", MainFrame)
         MainStroke.Color = CloneConfig.Theme.Accent
         MainStroke.Thickness = 2
 
+        local MainCorner = Instance.new("UICorner", MainFrame)
+        MainCorner.CornerRadius = UDim.new(0, 12)
+
+        -- Pasang Drag ke Panel Utama
         MakeDraggable(MainFrame)
 
         -- HEADER
         local Header = Instance.new("Frame", MainFrame)
-        Header.Size = UDim2.new(1, 0, 0, 50)
+        Header.Size = UDim2.new(1, 0, 0, 45)
         Header.BackgroundTransparency = 1
-        Header.ZIndex = 2
-        
+        Header.ZIndex = 6
+
         local Title = Instance.new("TextLabel", Header)
-        Title.Size = UDim2.new(1, -40, 0, 25)
-        Title.Position = UDim2.new(0, 15, 0, 8)
+        Title.Size = UDim2.new(1, -40, 1, 0)
+        Title.Position = UDim2.new(0, 15, 0, 0)
         Title.BackgroundTransparency = 1
-        Title.Text = "COPY AVATAR"
+        Title.Text = "CLONE AVATAR"
         Title.Font = Enum.Font.GothamBlack
-        Title.TextColor3 = CloneConfig.Theme.Text
+        Title.TextColor3 = CloneConfig.Theme.Accent -- Judul Ungu
         Title.TextSize = 18
         Title.TextXAlignment = Enum.TextXAlignment.Left
-        Title.ZIndex = 2
-        
-        local SubTitle = Instance.new("TextLabel", Header)
-        SubTitle.Size = UDim2.new(1, -40, 0, 15)
-        SubTitle.Position = UDim2.new(0, 15, 0, 28)
-        SubTitle.BackgroundTransparency = 1
-        SubTitle.Text = "by FayintXCode"
-        SubTitle.Font = Enum.Font.Gotham
-        SubTitle.TextColor3 = CloneConfig.Theme.SubText
-        SubTitle.TextSize = 12
-        SubTitle.TextXAlignment = Enum.TextXAlignment.Left
-        SubTitle.ZIndex = 2
+        Title.ZIndex = 6
 
         local CloseBtn = Instance.new("TextButton", Header)
         CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-        CloseBtn.Position = UDim2.new(1, -35, 0, 10)
+        CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
         CloseBtn.BackgroundTransparency = 1
         CloseBtn.Text = "×"
-        CloseBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        CloseBtn.TextColor3 = CloneConfig.Theme.SubText
         CloseBtn.TextSize = 24
         CloseBtn.Font = Enum.Font.GothamBold
-        CloseBtn.ZIndex = 3
-        
-        CloseBtn.MouseButton1Click:Connect(function()
-            MainFrame.Visible = false
-            State.IsGuiOpen = false
-            MiniButton.BackgroundColor3 = CloneConfig.Theme.Background
-            MiniButton.TextColor3 = CloneConfig.Theme.Accent
-        end)
+        CloseBtn.ZIndex = 7
 
-        -- CONTENT CONTAINER
+        -- CONTENT AREA
         local Content = Instance.new("Frame", MainFrame)
-        Content.Size = UDim2.new(1, -30, 1, -60)
-        Content.Position = UDim2.new(0, 15, 0, 60)
+        Content.Size = UDim2.new(1, -30, 1, -55)
+        Content.Position = UDim2.new(0, 15, 0, 50)
         Content.BackgroundTransparency = 1
-        Content.ZIndex = 2
+        Content.ZIndex = 6
 
-        -- INPUT BOX
+        -- INPUT
         local InputBox = Instance.new("TextBox", Content)
         InputBox.Size = UDim2.new(1, 0, 0, 45)
         InputBox.BackgroundColor3 = CloneConfig.Theme.ItemBG
         InputBox.Text = ""
-        InputBox.PlaceholderText = "Username or ID..."
-        InputBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-        InputBox.TextColor3 = Color3.white
+        InputBox.PlaceholderText = "Username / User ID"
+        InputBox.PlaceholderColor3 = CloneConfig.Theme.SubText
+        InputBox.TextColor3 = CloneConfig.Theme.Text
         InputBox.Font = Enum.Font.GothamBold
         InputBox.TextSize = 14
-        InputBox.ZIndex = 3
-        
+        InputBox.ZIndex = 7
+
         local InputCorner = Instance.new("UICorner", InputBox)
         InputCorner.CornerRadius = UDim.new(0, 8)
+        
+        local InputStroke = Instance.new("UIStroke", InputBox)
+        InputStroke.Color = CloneConfig.Theme.Accent
+        InputStroke.Thickness = 1
+        InputStroke.Transparency = 0.5
 
         -- BUTTONS
         local CopyBtn = Instance.new("TextButton", Content)
         CopyBtn.Size = UDim2.new(0.48, 0, 0, 40)
-        CopyBtn.Position = UDim2.new(0, 0, 0, 55)
-        CopyBtn.BackgroundColor3 = CloneConfig.Theme.Accent
-        CopyBtn.Text = "✅ COPY"
+        CopyBtn.Position = UDim2.new(0, 0, 0, 60)
+        CopyBtn.BackgroundColor3 = CloneConfig.Theme.Accent -- Tombol Ungu
+        CopyBtn.Text = "COPY"
         CopyBtn.Font = Enum.Font.GothamBlack
         CopyBtn.TextColor3 = Color3.white
         CopyBtn.TextSize = 14
-        CopyBtn.ZIndex = 3
+        CopyBtn.ZIndex = 7
         Instance.new("UICorner", CopyBtn).CornerRadius = UDim.new(0, 8)
 
         local RandomBtn = Instance.new("TextButton", Content)
         RandomBtn.Size = UDim2.new(0.48, 0, 0, 40)
-        RandomBtn.Position = UDim2.new(0.52, 0, 0, 55)
-        RandomBtn.BackgroundColor3 = CloneConfig.Theme.Random
-        RandomBtn.Text = "🎲 RANDOM"
+        RandomBtn.Position = UDim2.new(0.52, 0, 0, 60)
+        RandomBtn.BackgroundColor3 = CloneConfig.Theme.Random -- Tombol Pink/Merah
+        RandomBtn.Text = "RANDOM"
         RandomBtn.Font = Enum.Font.GothamBlack
         RandomBtn.TextColor3 = Color3.white
         RandomBtn.TextSize = 14
-        RandomBtn.ZIndex = 3
+        RandomBtn.ZIndex = 7
         Instance.new("UICorner", RandomBtn).CornerRadius = UDim.new(0, 8)
 
         local ResetBtn = Instance.new("TextButton", Content)
         ResetBtn.Size = UDim2.new(1, 0, 0, 40)
-        ResetBtn.Position = UDim2.new(0, 0, 0, 105)
-        ResetBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-        ResetBtn.Text = "✖ RESET AVATAR"
+        ResetBtn.Position = UDim2.new(0, 0, 0, 110)
+        ResetBtn.BackgroundColor3 = CloneConfig.Theme.ItemBG
+        ResetBtn.Text = "RESET TO ORIGINAL"
         ResetBtn.Font = Enum.Font.GothamBold
-        ResetBtn.TextColor3 = Color3.white
-        ResetBtn.TextSize = 14
-        ResetBtn.ZIndex = 3
+        ResetBtn.TextColor3 = CloneConfig.Theme.SubText
+        ResetBtn.TextSize = 12
+        ResetBtn.ZIndex = 7
         Instance.new("UICorner", ResetBtn).CornerRadius = UDim.new(0, 8)
 
-        -- FOOTER
-        local FooterTxt = Instance.new("TextLabel", Content)
-        FooterTxt.Size = UDim2.new(1, 0, 0, 20)
-        FooterTxt.Position = UDim2.new(0, 0, 1, -25)
-        FooterTxt.BackgroundTransparency = 1
-        FooterTxt.Text = "Supports R15 & R6"
-        FooterTxt.TextColor3 = Color3.fromRGB(100, 100, 100)
-        FooterTxt.Font = Enum.Font.Gotham
-        FooterTxt.TextSize = 10
-        FooterTxt.ZIndex = 2
-
-        -- LOGIC
+        -- INTERACTION LOGIC (FIXED)
+        
+        -- Logic Toggle Menu
         MiniButton.MouseButton1Click:Connect(function()
             State.IsGuiOpen = not State.IsGuiOpen
             MainFrame.Visible = State.IsGuiOpen
             
+            -- Efek Visual saat dibuka
             if State.IsGuiOpen then
                 MiniButton.BackgroundColor3 = CloneConfig.Theme.Accent
                 MiniButton.TextColor3 = Color3.white
@@ -320,16 +340,26 @@ return function(UI, Services, Config, Theme)
             end
         end)
 
+        -- Logic Tutup Menu
+        CloseBtn.MouseButton1Click:Connect(function()
+            State.IsGuiOpen = false
+            MainFrame.Visible = false
+            MiniButton.BackgroundColor3 = CloneConfig.Theme.Background
+            MiniButton.TextColor3 = CloneConfig.Theme.Accent
+        end)
+
+        -- Logic Copy
         CopyBtn.MouseButton1Click:Connect(function()
             local txt = InputBox.Text
             if tonumber(txt) then
                 ApplyAvatar(tonumber(txt))
             else
                 local s, id = pcall(function() return Players:GetUserIdFromNameAsync(txt) end)
-                if s then ApplyAvatar(id) else Notify("Error", "User not found!") end
+                if s then ApplyAvatar(id) else Notify("Error", "User tidak ditemukan!") end
             end
         end)
 
+        -- Logic Random
         RandomBtn.MouseButton1Click:Connect(function()
             local list = Players:GetPlayers()
             if #list > 1 then
@@ -338,41 +368,45 @@ return function(UI, Services, Config, Theme)
                 InputBox.Text = t.Name
                 ApplyAvatar(t.UserId)
             else
-                Notify("Info", "No other players.")
+                Notify("Info", "Tidak ada player lain.")
             end
         end)
 
+        -- Logic Reset
         ResetBtn.MouseButton1Click:Connect(ResetAvatar)
     end
 
-    -- [[ VANZY MENU INTEGRATION ]]
+    -- [[ VANZYXXX MENU INTEGRATION ]]
     
     local CosmeticsTab = UI:Tab("Cosmetics")
     
-    CosmeticsTab:Label("Clone Avatar Utility")
+    CosmeticsTab:Label("Clone Avatar (Purple Edition)")
     
-    -- TOGGLE WIDGET (Ini yang diminta)
-    CosmeticsTab:Toggle("Show Clone Widget 👥", function(state)
+    -- TOGGLE YANG DIMINTA
+    CosmeticsTab:Toggle("Show Widget 👥", function(state)
         State.WidgetEnabled = state
         
         if state then
-            if not ScreenGui then CreateInterface() end
+            -- Buat GUI jika belum ada
+            if not ScreenGui then CreateUI() end
+            
+            -- Munculkan Widget
             if MiniButton then MiniButton.Visible = true end
-            Notify("Clone UI", "Widget Enabled!")
+            Notify("Clone UI", "Widget Aktif! Geser & Klik.")
         else
+            -- Sembunyikan Widget & Menu
             if MiniButton then MiniButton.Visible = false end
             if MainFrame then MainFrame.Visible = false end
             State.IsGuiOpen = false
         end
     end)
-    
-    CosmeticsTab:Label("Manual Controls")
-    
+
+    CosmeticsTab:Label("Controls")
     CosmeticsTab:Button("Force Reset Avatar", CloneConfig.Theme.Random, function()
         ResetAvatar()
     end)
 
-    -- Cleanup saat script dimatikan
+    -- Auto cleanup
     Config.OnReset.Event:Connect(function()
         if ScreenGui then ScreenGui:Destroy() end
     end)
