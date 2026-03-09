@@ -673,6 +673,7 @@ local FeatureList = {
 
     -- Visual & Cosmetics (Sayap, Aura, Glowstick, dll)
     {category = "Cosmetics", name = "visualCosmetics", url = GitHubBaseURL .. "features/Visual/visualCosmetics.lua"},
+    {category = "Recording", name = "recording", url = GitHubBaseURL .. "features/Recording/recording.lua"},
     
     -- Settings Features
     {category = "Settings", name = "jump", url = GitHubBaseURL .. "features/Settings/jump.lua"},
